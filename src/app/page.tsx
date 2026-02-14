@@ -6,6 +6,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getLevelMeta, getPhrases } from "@/lib/content";
 import { LevelKey, PhraseCategory } from "@/data/types";
+import DailyChallengeCard from "@/components/DailyChallengeCard";
+
 
 export default function Home() {
   const levels: LevelKey[] = ["A", "B", "C", "D", "G"];
@@ -62,6 +64,20 @@ export default function Home() {
           </p>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <DailyChallengeCard />
+
+          {/* Quick links to new features */}
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/review" className="rounded-xl p-5 no-underline transition-all hover:-translate-y-1 hover:shadow-lg"
+              style={{ background: "var(--forest-light)", border: "1px solid rgba(0,0,0,0.06)" }}>
+              <div className="text-2xl mb-2">🔁</div>
+              <h3 className="font-semibold text-sm" style={{ color: "var(--forest)" }}>Repetition</h3>
+              <p className="text-xs mt-1" style={{ color: "var(--text-light)" }}>Öva svåra ord</p>
+            </Link>
+
+          </div>
+        </div>
         <div className="mb-8">
           <h2 className="text-3xl mb-2" style={{ fontFamily: "'DM Serif Display', serif" }}>Quick Start Phrases</h2>
           <p style={{ color: "var(--text-light)" }}>Essential Swedish phrases you&apos;ll use every day.</p>

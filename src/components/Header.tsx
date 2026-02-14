@@ -17,6 +17,10 @@ const navItems = [
   { href: "/kurs/D", label: "Kurs D", key: "D" },
   { href: "/kurs/G", label: "Grammatik", key: "G" },
   { href: "/phrases", label: "Vardagsfraser", key: "phrases" },
+  { href: "/daily", label: "📅 Dagens", key: "daily" },
+  { href: "/review", label: "🔁 Repetition", key: "review" },
+  { href: "/listening", label: "👂 Lyssna", key: "listening" },
+  { href: "/sentences", label: "🧩 Meningar", key: "sentences" },
   { href: "/leaderboard", label: "🏆 Topplista", key: "leaderboard" },
 ];
 
