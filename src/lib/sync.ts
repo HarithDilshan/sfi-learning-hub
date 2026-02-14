@@ -177,3 +177,76 @@ export async function getUserStats(userId: string) {
     wordsMastered: words?.filter((w: { repetitions: number }) => w.repetitions >= 5).length || 0,
   };
 }
+
+// ─── LEADERBOARD ───
+
+export interface LeaderboardEntry {
+  user_id: string;
+  display_name: string;
+  xp: number;
+  streak: number;
+  topics_completed: number;
+  last_activity: string;
+}
+
+// Get top users by XP
+export async function getLeaderboard(limit: number = 50): Promise<LeaderboardEntry[]> {
+  if (!isSupabaseConfigured) return [];
+
+  const { data: profiles, error } = await supabase
+    .from("user_profiles")
+    .select("user_id, display_name, xp, streak, last_activity")
+    .order("xp", { ascending: false })
+    .limit(limit);
+
+  if (error || !profiles) return [];
+
+  // Get topic counts for each user
+  const entries: LeaderboardEntry[] = [];
+
+  for (const profile of profiles) {
+    if (profile.xp === 0) continue; // skip users with no activity
+
+    const { count } = await supabase
+      .from("user_progress")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", profile.user_id);
+
+    entries.push({
+      user_id: profile.user_id,
+      display_name: profile.display_name || "Anonym elev",
+      xp: profile.xp || 0,
+      streak: profile.streak || 0,
+      topics_completed: count || 0,
+      last_activity: profile.last_activity,
+    });
+  }
+
+  return entries;
+}
+
+// Update display name
+export async function updateDisplayName(userId: string, name: string) {
+  if (!isSupabaseConfigured) return;
+
+  const { error } = await supabase
+    .from("user_profiles")
+    .update({ display_name: name })
+    .eq("user_id", userId);
+
+  if (error) console.error("Update name error:", error.message);
+}
+
+// Get current user's rank
+export async function getUserRank(userId: string): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+
+  const { data } = await supabase
+    .from("user_profiles")
+    .select("user_id, xp")
+    .order("xp", { ascending: false });
+
+  if (!data) return 0;
+  const idx = data.findIndex((p) => p.user_id === userId);
+  return idx >= 0 ? idx + 1 : 0;
+}

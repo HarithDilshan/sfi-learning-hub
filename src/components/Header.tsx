@@ -17,6 +17,7 @@ const navItems = [
   { href: "/kurs/D", label: "Kurs D", key: "D" },
   { href: "/kurs/G", label: "Grammatik", key: "G" },
   { href: "/phrases", label: "Vardagsfraser", key: "phrases" },
+  { href: "/leaderboard", label: "🏆 Topplista", key: "leaderboard" },
 ];
 
 export default function Header() {
