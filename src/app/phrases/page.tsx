@@ -3,11 +3,19 @@
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { phrasesData } from "@/data";
+import { useState, useEffect } from "react";
+import { getPhrases } from "@/lib/content";
+import { PhraseCategory } from "@/data/types";
 import { speak } from "@/lib/speech";
 import { Volume2 } from "lucide-react";
 
 export default function PhrasesPage() {
+  const [phrasesData, setPhrasesData] = useState<PhraseCategory[]>([]);
+
+  useEffect(() => {
+    getPhrases().then(setPhrasesData);
+  }, []);
+
   return (
     <>
       <Header />

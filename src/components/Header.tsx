@@ -15,6 +15,7 @@ const navItems = [
   { href: "/kurs/B", label: "Kurs B", key: "B" },
   { href: "/kurs/C", label: "Kurs C", key: "C" },
   { href: "/kurs/D", label: "Kurs D", key: "D" },
+  { href: "/kurs/G", label: "Grammatik", key: "G" },
   { href: "/phrases", label: "Vardagsfraser", key: "phrases" },
 ];
 

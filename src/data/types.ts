@@ -48,4 +48,4 @@ export interface PhraseCategory {
   phrases: { sv: string; en: string }[];
 }
 
-export type LevelKey = "A" | "B" | "C" | "D";
+export type LevelKey = "A" | "B" | "C" | "D" | "G";

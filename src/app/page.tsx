@@ -1,11 +1,20 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { levelMeta, phrasesData } from "@/data";
-import { LevelKey } from "@/data/types";
+import { getLevelMeta, getPhrases } from "@/lib/content";
+import { LevelKey, PhraseCategory } from "@/data/types";
 
 export default function Home() {
-  const levels: LevelKey[] = ["A", "B", "C", "D"];
+  const levels: LevelKey[] = ["A", "B", "C", "D", "G"];
+  const meta = getLevelMeta();
+  const [phrases, setPhrases] = useState<PhraseCategory[]>([]);
+
+  useEffect(() => {
+    getPhrases().then(setPhrases);
+  }, []);
 
   return (
     <>
@@ -31,8 +40,8 @@ export default function Home() {
                 className="bg-white/10 backdrop-blur border border-white/15 rounded-xl p-6 min-w-[160px] text-left no-underline text-white transition-all hover:bg-white/18 hover:-translate-y-1 hover:shadow-lg"
               >
                 <div className="text-3xl" style={{ fontFamily: "'DM Serif Display', serif", color: "var(--yellow)" }}>Kurs {l}</div>
-                <div className="text-sm opacity-80 mt-1">{levelMeta[l].label}</div>
-                <div className="text-xs opacity-60 mt-2 leading-snug">{levelMeta[l].desc}</div>
+                <div className="text-sm opacity-80 mt-1">{meta[l].label}</div>
+                <div className="text-xs opacity-60 mt-2 leading-snug">{meta[l].desc}</div>
               </Link>
             ))}
           </div>
@@ -59,7 +68,7 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {phrasesData.slice(0, 3).map((cat, i) => (
+          {phrases.slice(0, 3).map((cat, i) => (
             <Link
               key={i}
               href="/phrases"

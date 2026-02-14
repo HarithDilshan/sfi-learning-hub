@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import VocabTable from "@/components/VocabTable";
@@ -10,8 +10,8 @@ import Dialogue from "@/components/Dialogue";
 import GrammarBox from "@/components/GrammarBox";
 import ExercisePanel from "@/components/ExercisePanel";
 import Flashcards from "@/components/Flashcards";
-import { courseData } from "@/data";
-import { LevelKey } from "@/data/types";
+import { getTopic } from "@/lib/content";
+import { Topic } from "@/data/types";
 
 const sections = [
   { key: "vocabulary", label: "📚 Vocabulary" },
@@ -25,12 +25,30 @@ export default function TopicPage() {
   const params = useParams();
   const level = params.level as string;
   const topicId = params.topicId as string;
-  const [activeSection, setActiveSection] = useState("vocabulary");
+const [activeSection, setActiveSection] = useState("vocabulary");
+  const [topic, setTopic] = useState<Topic | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const data = courseData[level as LevelKey];
-  const topic = data?.topics.find((t) => t.id === topicId);
+  useEffect(() => {
+    getTopic(level, topicId).then((t) => {
+      setTopic(t);
+      setLoading(false);
+    });
+  }, [level, topicId]);
 
-  if (!data || !topic) {
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <div className="max-w-[1100px] mx-auto px-8 py-20 text-center" style={{ color: "var(--text-light)" }}>
+          Loading...
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (!topic) {
     return (
       <>
         <Header />

@@ -1,18 +1,50 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { courseData } from "@/data";
-import { LevelKey } from "@/data/types";
+import { getCourse } from "@/lib/content";
+import { CourseLevel } from "@/data/types";
 
-export function generateStaticParams() {
-  return [{ level: "A" }, { level: "B" }, { level: "C" }, { level: "D" }];
-}
+export default function KursPage() {
+  const params = useParams();
+  const level = params.level as string;
+  const [data, setData] = useState<CourseLevel | null>(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function KursPage({ params }: { params: Promise<{ level: string }> }) {
-  const { level } = await params;
-  const data = courseData[level as LevelKey];
-  if (!data) return notFound();
+  useEffect(() => {
+    getCourse(level).then((d) => {
+      setData(d);
+      setLoading(false);
+    });
+  }, [level]);
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <div className="max-w-[1100px] mx-auto px-8 py-20 text-center" style={{ color: "var(--text-light)" }}>
+          Loading...
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (!data) {
+    return (
+      <>
+        <Header />
+        <div className="max-w-[1100px] mx-auto px-8 py-20 text-center">
+          <h2 className="text-2xl mb-4">Course not found</h2>
+          <Link href="/" style={{ color: "var(--blue)" }}>← Back to home</Link>
+        </div>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>

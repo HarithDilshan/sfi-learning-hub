@@ -32,7 +32,7 @@ export default function VocabTable({ words }: { words: VocabWord[] }) {
                   onMouseLeave={(e) => { e.currentTarget.style.background = "var(--blue-light)"; e.currentTarget.style.color = "inherit"; }}
                   title="Listen"
                 >
-                  <Volume2 size={16} />
+                  <Volume2 size={18} />
                 </button>
               </td>
             </tr>
