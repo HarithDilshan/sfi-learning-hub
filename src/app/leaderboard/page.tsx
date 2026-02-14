@@ -255,51 +255,72 @@ export default function LeaderboardPage() {
               return (
                 <div
                   key={entry.user_id}
-                  className="grid items-center px-4 sm:px-6 py-4 transition-colors"
+                  className="px-4 sm:px-6 py-3 sm:py-4 transition-colors"
                   style={{
-                    gridTemplateColumns: "50px 1fr 80px 70px 80px 90px",
                     borderBottom: "1px solid var(--warm-dark)",
                     background: isMe ? "var(--blue-light)" : rank <= 3 ? "var(--yellow-light)" : "transparent",
                   }}
                 >
-                  {/* Rank */}
-                  <span className="text-lg font-bold" style={{ color: rank <= 3 ? "var(--yellow-dark)" : "var(--text-light)" }}>
-                    {getRankEmoji(rank)}
-                  </span>
-
-                  {/* Name + level badge */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`text-sm truncate ${isMe ? "font-bold" : "font-medium"}`} style={{ color: "var(--text)" }}>
-                      {entry.display_name}
-                      {isMe && <span className="ml-1 text-xs" style={{ color: "var(--blue)" }}>(du)</span>}
+                  {/* Desktop: grid row */}
+                  <div
+                    className="hidden sm:grid items-center"
+                    style={{ gridTemplateColumns: "50px 1fr 80px 70px 80px 90px" }}
+                  >
+                    <span className="text-lg font-bold" style={{ color: rank <= 3 ? "var(--yellow-dark)" : "var(--text-light)" }}>
+                      {getRankEmoji(rank)}
                     </span>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap hidden sm:inline"
-                      style={{ background: level.bg, color: level.color, fontWeight: 600 }}
-                    >
-                      {level.label}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-sm truncate ${isMe ? "font-bold" : "font-medium"}`} style={{ color: "var(--text)" }}>
+                        {entry.display_name}
+                        {isMe && <span className="ml-1 text-xs" style={{ color: "var(--blue)" }}>(du)</span>}
+                      </span>
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap"
+                        style={{ background: level.bg, color: level.color, fontWeight: 600 }}
+                      >
+                        {level.label}
+                      </span>
+                    </div>
+                    <span className="text-center font-bold text-sm" style={{ color: "var(--blue-dark)" }}>
+                      {entry.xp.toLocaleString()}
+                    </span>
+                    <span className="text-center text-sm" style={{ color: "var(--text-light)" }}>
+                      {entry.streak > 0 ? `🔥 ${entry.streak}` : "—"}
+                    </span>
+                    <span className="text-center text-sm" style={{ color: "var(--text-light)" }}>
+                      {entry.topics_completed}
+                    </span>
+                    <span className="text-right text-xs" style={{ color: "var(--text-light)" }}>
+                      {timeAgo(entry.last_activity)}
                     </span>
                   </div>
 
-                  {/* XP */}
-                  <span className="text-center font-bold text-sm" style={{ color: "var(--blue-dark)" }}>
-                    {entry.xp.toLocaleString()}
-                  </span>
-
-                  {/* Streak */}
-                  <span className="text-center text-sm hidden sm:block" style={{ color: "var(--text-light)" }}>
-                    {entry.streak > 0 ? `🔥 ${entry.streak}` : "—"}
-                  </span>
-
-                  {/* Topics */}
-                  <span className="text-center text-sm hidden sm:block" style={{ color: "var(--text-light)" }}>
-                    {entry.topics_completed}
-                  </span>
-
-                  {/* Last active */}
-                  <span className="text-right text-xs hidden sm:block" style={{ color: "var(--text-light)" }}>
-                    {timeAgo(entry.last_activity)}
-                  </span>
+                  {/* Mobile: card layout */}
+                  <div className="flex sm:hidden items-center gap-3">
+                    <span className="text-xl font-bold flex-shrink-0 w-10 text-center" style={{ color: rank <= 3 ? "var(--yellow-dark)" : "var(--text-light)" }}>
+                      {getRankEmoji(rank)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm truncate ${isMe ? "font-bold" : "font-medium"}`} style={{ color: "var(--text)" }}>
+                          {entry.display_name}
+                        </span>
+                        {isMe && <span className="text-xs flex-shrink-0" style={{ color: "var(--blue)" }}>(du)</span>}
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: level.bg, color: level.color, fontWeight: 600 }}
+                        >
+                          {level.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: "var(--text-light)" }}>
+                        <span className="font-bold" style={{ color: "var(--blue-dark)" }}>⭐ {entry.xp.toLocaleString()} XP</span>
+                        {entry.streak > 0 && <span>🔥 {entry.streak}</span>}
+                        <span>📚 {entry.topics_completed}</span>
+                        <span>{timeAgo(entry.last_activity)}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })}
@@ -337,7 +358,21 @@ export default function LeaderboardPage() {
                 );
               })}
             </div>
-          </div>
+          </div><div
+              className="hidden sm:grid items-center px-6 py-3 text-xs font-semibold uppercase tracking-wide"
+              style={{
+                gridTemplateColumns: "50px 1fr 80px 70px 80px 90px",
+                background: "var(--warm)",
+                color: "var(--text-light)",
+              }}
+            >
+              <span>Rank</span>
+              <span>Namn</span>
+              <span className="text-center">XP</span>
+              <span className="text-center">Streak</span>
+              <span className="text-center">Ämnen</span>
+              <span className="text-right">Senast</span>
+            </div>
         </div>
       </div>
       <Footer />
