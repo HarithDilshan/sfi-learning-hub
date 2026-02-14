@@ -1,9 +1,22 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Only create client if credentials exist — avoids build errors
+let supabase: SupabaseClient;
+
+if (supabaseUrl && supabaseAnonKey) {
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
+} else {
+  // Create a dummy placeholder that won't crash at build time
+  supabase = new Proxy({} as SupabaseClient, {
+    get: () => () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
+  });
+}
+
+export { supabase };
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
 // Type definitions for our database
 export interface UserProgress {
@@ -26,3 +39,5 @@ export interface SpacedRepetitionCard {
   next_review: string;
   repetitions: number;
 }
+
+export type { SupabaseClient } from "@supabase/supabase-js";
