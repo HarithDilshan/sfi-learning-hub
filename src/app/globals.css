@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  --blue: #005B99;
+  --blue-light: #E8F4FD;
+  --blue-dark: #003D66;
+  --yellow: #FECC02;
+  --yellow-light: #FFF8D6;
+  --yellow-dark: #D4A800;
+  --forest: #2D5A3D;
+  --forest-light: #E8F5EC;
+  --warm: #FAF7F2;
+  --warm-dark: #F0EBE1;
+  --text: #1A1A2E;
+  --text-light: #5A5A7A;
+  --correct: #2D8B4E;
+  --correct-bg: #E8F8EE;
+  --wrong: #C0392B;
+  --wrong-bg: #FDE8E6;
+}
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--warm);
+  color: var(--text);
+}
+
+/* Flashcard flip animation */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* Smooth transitions */
+.transition-transform-600 {
+  transition: transform 0.6s;
+}
+
+/* Progress bar animation */
+.progress-fill-animate {
+  transition: width 0.5s ease;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease;
+}
+
+@keyframes heroFloat {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-20px, -10px); }
+}
+
+.animate-hero-float {
+  animation: heroFloat 20s ease-in-out infinite;
+}
