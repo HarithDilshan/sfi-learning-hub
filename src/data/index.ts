@@ -8,7 +8,12 @@ export const courseData: Record<LevelKey, CourseLevel> = {
   A: kursA,
   B: kursB,
   C: kursC,
-  D: kursD
+  D: kursD,
+  G: {
+    name: "Grammatik",
+    desc: "Word order, verbs, nouns, adjectives",
+    topics: []
+  }
 };
 
 export const levelMeta: Record<string, { label: string; desc: string }> = {
@@ -16,7 +21,7 @@ export const levelMeta: Record<string, { label: string; desc: string }> = {
   B: { label: "Grundläggande", desc: "Daily life, food, weather" },
   C: { label: "Mellanliggande", desc: "Work, health, housing" },
   D: { label: "Avancerad", desc: "Society, writing, reading" },
-  G: { label: "Grammatik", desc: "Word order, verbs, nouns, adjectives" },
+  G: { label: "Grammatik", desc: "Word order, verbs, nouns, adjectives" }
 };
 
 export const phrasesData: PhraseCategory[] = [
