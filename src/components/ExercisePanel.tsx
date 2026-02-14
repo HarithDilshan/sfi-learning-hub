@@ -67,7 +67,6 @@ export default function ExercisePanel({ exercises, topicId }: Props) {
     addXP(score * 10);
     if (pct >= 80) incrementStreak();
     markTopicComplete(topicId, score, exercises.length);
-    window.dispatchEvent(new Event("progress-update"));
   }
 
   function restart() {
@@ -122,25 +121,24 @@ export default function ExercisePanel({ exercises, topicId }: Props) {
 
       <div className="rounded-xl p-8" style={{ background: "var(--warm)" }}>
         <div
-          className={`bg-white rounded-lg p-6 border-2 transition-colors ${
-            answered ? (isCorrect ? "border-[var(--correct)] bg-[var(--correct-bg)]" : "border-[var(--wrong)] bg-[var(--wrong-bg)]") : "border-transparent"
-          }`}
+          className={`bg-white rounded-lg p-6 border-2 transition-colors ${answered ? (isCorrect ? "border-[var(--correct)] bg-[var(--correct-bg)]" : "border-[var(--wrong)] bg-[var(--wrong-bg)]") : "border-transparent"
+            }`}
         >
           <div className="text-lg font-medium mb-4">
             {ex.type === "fill"
               ? ex.q.split("___").map((part, i, arr) => (
-                  <span key={i}>
-                    {part}
-                    {i < arr.length - 1 && (
-                      <span
-                        className="inline-block min-w-[120px] text-center px-2 border-b-2 border-dashed"
-                        style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--blue)", borderColor: "var(--blue)" }}
-                      >
-                        {answered ? (ex.answer as string) : "?"}
-                      </span>
-                    )}
-                  </span>
-                ))
+                <span key={i}>
+                  {part}
+                  {i < arr.length - 1 && (
+                    <span
+                      className="inline-block min-w-[120px] text-center px-2 border-b-2 border-dashed"
+                      style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--blue)", borderColor: "var(--blue)" }}
+                    >
+                      {answered ? (ex.answer as string) : "?"}
+                    </span>
+                  )}
+                </span>
+              ))
               : ex.q}
           </div>
 

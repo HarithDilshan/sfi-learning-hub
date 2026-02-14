@@ -40,10 +40,25 @@ export default function Header() {
 
     // Check auth state
     if (isSupabaseConfigured) {
-      getUser().then((u) => setUser(u ? { email: u.email } : null));
+      getUser().then(async (u) => {
+        if (u) {
+          setUser({ email: u.email });
+          const { loadCloudProgress } = await import("@/lib/progress");
+          await loadCloudProgress(u.id);
+        } else {
+          setUser(null);
+        }
+      });
       const sub = onAuthChange((u: unknown) => {
-        const typed = u as { email?: string } | null;
+        const typed = u as { email?: string; id?: string } | null;
         setUser(typed);
+        if (typed?.id) {
+          import("@/lib/progress").then(({ loadCloudProgress }) => {
+            loadCloudProgress(typed.id!);
+          });
+        } else {
+          import("@/lib/progress").then(({ setUserId }) => setUserId(null));
+        }
       });
       return () => {
         window.removeEventListener("progress-update", handler);
@@ -172,11 +187,10 @@ export default function Header() {
             <Link
               key={key}
               href={href}
-              className={`px-4 md:px-6 py-3 text-sm font-medium whitespace-nowrap no-underline border-b-[3px] transition-all ${
-                isActive(key)
-                  ? "text-white border-[var(--yellow)]"
-                  : "text-white/60 border-transparent hover:text-white/90 hover:bg-white/5"
-              }`}
+              className={`px-4 md:px-6 py-3 text-sm font-medium whitespace-nowrap no-underline border-b-[3px] transition-all ${isActive(key)
+                ? "text-white border-[var(--yellow)]"
+                : "text-white/60 border-transparent hover:text-white/90 hover:bg-white/5"
+                }`}
             >
               {label}
             </Link>
