@@ -30,9 +30,11 @@ async function send(
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       tag,
+      renotify: true,
       silent,
       data: { url },
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
   } catch {
     // Silently fail — never break the app for a notification
   }

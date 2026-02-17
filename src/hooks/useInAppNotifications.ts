@@ -1,82 +1,80 @@
 "use client";
-
 /**
  * useInAppNotifications
  *
- * Listens to the existing "progress-update" window event and fires
- * local (service-worker) notifications when interesting things happen:
- *  - Quiz / exercise completed
- *  - Streak incremented
- *  - XP milestone crossed
- *  - New badge unlocked
+ * Listens to "progress-update" and fires local notifications only when
+ * something genuinely changes (badge, streak, XP milestone, quiz result).
  *
- * Usage: call once at app root level, e.g. inside PWARegister or layout.tsx:
- *   useInAppNotifications();
+ * Fixes: ignores all events for 2s after mount (initial load flood),
+ * and debounces rapid-fire events so only one check runs per action.
  */
-
 import { useEffect, useRef } from "react";
 import { getProgress } from "@/lib/progress";
 import { getUnlockedBadges } from "@/lib/badges";
-
-// We use the SW to show notifications so they work even when the tab isn't focused.
-async function showNotification(title: string, body: string, options?: {
-  tag?: string;
-  url?: string;
-  icon?: string;
-}) {
+async function showNotification(
+  title: string,
+  body: string,
+  options?: { tag?: string; url?: string }
+) {
   if (typeof window === "undefined") return;
   if (!("serviceWorker" in navigator)) return;
   if (Notification.permission !== "granted") return;
-
   try {
     const reg = await navigator.serviceWorker.ready;
     await reg.showNotification(title, {
       body,
-      icon: options?.icon ?? "/icons/icon-192.png",
+      icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       tag: options?.tag ?? "in-app",
+      silent: true,
       data: { url: options?.url ?? "/" },
-      silent: true, // No sound for in-app events — less intrusive
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
   } catch {
-    // Silently fail if notification can't be shown
+    // Never crash the app for a notification
   }
 }
-
-// XP thresholds that deserve a notification
 const XP_MILESTONES = [50, 100, 250, 500, 1000, 2000, 5000];
-
+type Snapshot = {
+  xp: number;
+  streak: number;
+  topicCount: number;
+  badgeIds: Set<string>;
+};
+function takeSnapshot(): Snapshot {
+  const p = getProgress();
+  return {
+    xp: p.xp,
+    streak: p.streak,
+    topicCount: Object.keys(p.completedTopics).length,
+    badgeIds: new Set(getUnlockedBadges(p).map((b) => b.id)),
+  };
+}
 export function useInAppNotifications() {
-  // Track previous state so we can detect changes
-  const prevRef = useRef<{
-    xp: number;
-    streak: number;
-    topicCount: number;
-    badgeIds: Set<string>;
-  } | null>(null);
-
+  const prevRef = useRef<Snapshot | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyRef = useRef(false);
   useEffect(() => {
-    // Initialise previous state from current progress
-    const init = getProgress();
-    prevRef.current = {
-      xp: init.xp,
-      streak: init.streak,
-      topicCount: Object.keys(init.completedTopics).length,
-      badgeIds: new Set(getUnlockedBadges(init).map((b) => b.id)),
-    };
-
+    // Delay 2s so all page-load progress-update events settle before
+    // we start watching. Without this, every stored value looks like
+    // a "new" change and fires ~30 notifications on startup.
+    const initTimer = setTimeout(() => {
+      prevRef.current = takeSnapshot();
+      readyRef.current = true;
+    }, 2000);
     async function handleProgressUpdate() {
+      // Ignore events during the initial 2s settle window
+      if (!readyRef.current || !prevRef.current) return;
+      // Debounce: if multiple events fire in quick succession (e.g. XP +
+      // streak + topic all at once), only run the check once after 300ms
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => runCheck(), 300);
+    }
+    async function runCheck() {
       const prev = prevRef.current;
       if (!prev) return;
-
       const current = getProgress();
-      const now = {
-        xp: current.xp,
-        streak: current.streak,
-        topicCount: Object.keys(current.completedTopics).length,
-        badgeIds: new Set(getUnlockedBadges(current).map((b) => b.id)),
-      };
-
+      const now = takeSnapshot();
       // ── 1. New badge unlocked ──────────────────────────────────────
       const newBadges = getUnlockedBadges(current).filter(
         (b) => !prev.badgeIds.has(b.id)
@@ -88,7 +86,6 @@ export function useInAppNotifications() {
           { tag: `badge-${badge.id}`, url: "/profile" }
         );
       }
-
       // ── 2. Streak incremented ──────────────────────────────────────
       if (now.streak > prev.streak) {
         const s = now.streak;
@@ -101,7 +98,6 @@ export function useInAppNotifications() {
           { tag: "streak", url: "/daily" }
         );
       }
-
       // ── 3. XP milestone crossed ────────────────────────────────────
       const crossedMilestone = XP_MILESTONES.find(
         (m) => prev.xp < m && now.xp >= m
@@ -113,47 +109,35 @@ export function useInAppNotifications() {
           { tag: "xp-milestone", url: "/profile" }
         );
       }
-
-      // ── 4. Topic / quiz completed ──────────────────────────────────
-      // Detect a newly completed topic (topicCount increased)
+      // ── 4. Quiz / topic completed (80%+) ──────────────────────────
       if (now.topicCount > prev.topicCount) {
-        // Find which topic was just added
-        const newTopicId = Object.keys(current.completedTopics).find(
-          (id) => !prev.badgeIds.has(id) // reuse badgeIds as a Set proxy isn't ideal,
-          // but topicCount diff is the real guard above
-        );
-
-        const topic = current.completedTopics[
-          Object.keys(current.completedTopics).at(-1) ?? ""
-        ];
-
+        const latestKey = Object.keys(current.completedTopics).at(-1) ?? "";
+        const topic = current.completedTopics[latestKey];
         if (topic) {
           const pct = topic.bestScore;
-          const isPerfect = pct === 100;
-          const isGood = pct >= 80;
-
-          if (isPerfect) {
+          if (pct === 100) {
             await showNotification(
               "💯 Perfekt resultat!",
               "Du fick 100% på övningen — fantastiskt jobbat!",
               { tag: "quiz-perfect", url: "/review" }
             );
-          } else if (isGood) {
+          } else if (pct >= 80) {
             await showNotification(
               "🎉 Bra jobbat!",
               `Du fick ${pct}% — ett starkt resultat!`,
               { tag: "quiz-done", url: "/review" }
             );
           }
-          // Don't spam notifications for poor results
         }
       }
-
-      // Update stored previous state
+      // Save new snapshot as baseline for next event
       prevRef.current = now;
     }
-
     window.addEventListener("progress-update", handleProgressUpdate);
-    return () => window.removeEventListener("progress-update", handleProgressUpdate);
+    return () => {
+      clearTimeout(initTimer);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      window.removeEventListener("progress-update", handleProgressUpdate);
+    };
   }, []);
 }
