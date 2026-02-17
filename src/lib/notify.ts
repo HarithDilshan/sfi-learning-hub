@@ -30,7 +30,6 @@ async function send(
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       tag,
-      renotify: true,
       silent,
       data: { url },
     });

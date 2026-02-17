@@ -35,7 +35,6 @@ async function showNotification(title: string, body: string, options?: {
       icon: options?.icon ?? "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       tag: options?.tag ?? "in-app",
-      renotify: false,
       data: { url: options?.url ?? "/" },
       silent: true, // No sound for in-app events — less intrusive
     });

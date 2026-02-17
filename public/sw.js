@@ -79,7 +79,6 @@ self.addEventListener("push", (event) => {
       icon: data.icon,
       badge: data.badge,
       tag: data.tag,
-      renotify: true,
       data: { url: data.url },
       actions: [
         { action: "open", title: "Öva nu 📚" },
