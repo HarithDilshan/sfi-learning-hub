@@ -313,7 +313,7 @@ export default function ReviewPage() {
                   { key: "flashcard", label: "🃏 Flashkort", icon: "" },
                   { key: "type", label: "⌨️ Skriv", icon: "" },
                   { key: "listen", label: "👂 Lyssna", icon: "" },
-                ] as { key: ReviewMode; label: string }[]
+                ] as { key: ReviewMode; label: string; icon: string }[]
               ).map((m) => (
                 <button
                   key={m.key}
