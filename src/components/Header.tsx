@@ -7,10 +7,10 @@ import { getProgress } from "@/lib/progress";
 import { getUser, signOut, onAuthChange } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import AuthModal from "./AuthModal";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Menu, X } from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Hem (Home)", key: "home" },
+  { href: "/", label: "Hem", key: "home" },
   { href: "/kurs/A", label: "Kurs A", key: "A" },
   { href: "/kurs/B", label: "Kurs B", key: "B" },
   { href: "/kurs/C", label: "Kurs C", key: "C" },
@@ -32,6 +32,7 @@ export default function Header() {
   const [user, setUser] = useState<{ email?: string } | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const progress = getProgress();
@@ -45,7 +46,6 @@ export default function Header() {
     };
     window.addEventListener("progress-update", handler);
 
-    // Check auth state
     if (isSupabaseConfigured) {
       getUser().then(async (u) => {
         if (u) {
@@ -76,6 +76,11 @@ export default function Header() {
     return () => window.removeEventListener("progress-update", handler);
   }, []);
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   async function handleSignOut() {
     await signOut();
     setUser(null);
@@ -85,6 +90,12 @@ export default function Header() {
   function isActive(key: string) {
     if (key === "home") return pathname === "/";
     if (key === "phrases") return pathname === "/phrases";
+    if (key === "daily") return pathname === "/daily";
+    if (key === "review") return pathname === "/review";
+    if (key === "listening") return pathname === "/listening";
+    if (key === "sentences") return pathname === "/sentences";
+    if (key === "leaderboard") return pathname === "/leaderboard";
+    if (key === "profile") return pathname === "/profile";
     return pathname.startsWith(`/kurs/${key}`);
   }
 
@@ -94,8 +105,10 @@ export default function Header() {
         className="sticky top-0 z-50"
         style={{ background: "var(--blue-dark)", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}
       >
-        <div className="flex items-center justify-between px-4 md:px-8 py-4 max-w-[1400px] mx-auto">
-          <Link href="/" className="flex items-center gap-3 no-underline">
+        {/* ── Top bar ── */}
+        <div className="flex items-center justify-between px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-3 no-underline shrink-0">
             <div
               className="w-[42px] h-[28px] rounded relative overflow-hidden border border-white/20"
               style={{ background: "var(--blue)" }}
@@ -104,14 +117,15 @@ export default function Header() {
               <div className="absolute left-0 top-[10px] w-full h-[7px]" style={{ background: "var(--yellow)" }} />
             </div>
             <h1
-              className="text-white text-2xl"
+              className="text-white text-xl md:text-2xl"
               style={{ fontFamily: "'DM Serif Display', serif", fontWeight: 400, letterSpacing: "-0.02em" }}
             >
               Lär dig <span style={{ color: "var(--yellow)" }}>Svenska</span>
             </h1>
           </Link>
 
-          <div className="hidden md:flex items-center gap-4 text-white text-sm font-medium">
+          {/* Desktop: stats + auth */}
+          <div className="hidden md:flex items-center gap-3 text-white text-sm font-medium">
             <div className="flex items-center gap-1.5 bg-white/10 px-3.5 py-1.5 rounded-full">
               <span>🔥</span>
               <span>{streak} streak</span>
@@ -121,7 +135,6 @@ export default function Header() {
               <span>{xp} XP</span>
             </div>
 
-            {/* Auth section */}
             {isSupabaseConfigured && (
               <>
                 {user ? (
@@ -133,7 +146,6 @@ export default function Header() {
                       <User size={14} />
                       <span className="max-w-[120px] truncate">{user.email?.split("@")[0]}</span>
                     </button>
-
                     {showUserMenu && (
                       <div
                         className="absolute right-0 top-full mt-2 bg-white rounded-xl py-2 min-w-[200px] z-50"
@@ -166,46 +178,91 @@ export default function Header() {
             )}
           </div>
 
-          {/* Mobile auth button */}
-          {isSupabaseConfigured && (
-            <div className="md:hidden">
-              {user ? (
-                <button
-                  onClick={handleSignOut}
-                  className="text-white/70 text-xs px-3 py-1.5 rounded-full bg-white/10 cursor-pointer"
-                >
-                  <LogOut size={14} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowAuth(true)}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
-                  style={{ background: "var(--yellow)", color: "var(--text)" }}
-                >
-                  Logga in
-                </button>
-              )}
+          {/* Mobile: stats pill + hamburger */}
+          <div className="flex md:hidden items-center gap-2">
+            <div className="flex items-center gap-2 text-white text-xs font-medium">
+              <span className="bg-white/10 px-2.5 py-1 rounded-full">🔥 {streak}</span>
+              <span className="bg-white/10 px-2.5 py-1 rounded-full">⭐ {xp}</span>
             </div>
-          )}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="text-white p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-all ml-1"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
 
-        <nav className="flex max-w-[1400px] mx-auto px-4 md:px-8 overflow-x-auto">
+        {/* ── Desktop nav: horizontally scrollable, compact ── */}
+        <nav className="hidden md:flex max-w-[1400px] mx-auto px-4 md:px-8 overflow-x-auto scrollbar-none">
           {navItems.map(({ href, label, key }) => (
             <Link
               key={key}
               href={href}
-              className={`px-4 md:px-6 py-3 text-sm font-medium whitespace-nowrap no-underline border-b-[3px] transition-all ${isActive(key)
-                ? "text-white border-[var(--yellow)]"
-                : "text-white/60 border-transparent hover:text-white/90 hover:bg-white/5"
-                }`}
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap no-underline border-b-[3px] transition-all ${
+                isActive(key)
+                  ? "text-white border-[var(--yellow)]"
+                  : "text-white/60 border-transparent hover:text-white/90 hover:bg-white/5"
+              }`}
             >
               {label}
             </Link>
           ))}
         </nav>
+
+        {/* ── Mobile nav drawer (slide down) ── */}
+        {mobileMenuOpen && (
+          <div
+            className="md:hidden border-t border-white/10"
+            style={{ background: "var(--blue-dark)" }}
+          >
+            {/* Auth row */}
+            {isSupabaseConfigured && (
+              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                {user ? (
+                  <>
+                    <span className="text-white/70 text-sm truncate max-w-[200px]">{user.email}</span>
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center gap-1.5 text-white/70 text-sm bg-white/10 px-3 py-1.5 rounded-full"
+                    >
+                      <LogOut size={13} />
+                      Logga ut
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => { setShowAuth(true); setMobileMenuOpen(false); }}
+                    className="w-full py-2 rounded-xl font-semibold text-sm"
+                    style={{ background: "var(--yellow)", color: "var(--text)" }}
+                  >
+                    Logga in (Sign in)
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Nav grid — 3 columns */}
+            <div className="grid grid-cols-3 gap-px p-3">
+              {navItems.map(({ href, label, key }) => (
+                <Link
+                  key={key}
+                  href={href}
+                  className={`flex flex-col items-center justify-center text-center px-2 py-3 rounded-xl text-xs font-medium no-underline transition-all ${
+                    isActive(key)
+                      ? "bg-white/15 text-white"
+                      : "text-white/60 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* Auth Modal */}
       {showAuth && (
         <AuthModal
           onClose={() => setShowAuth(false)}
