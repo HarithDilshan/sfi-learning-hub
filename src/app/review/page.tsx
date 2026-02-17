@@ -9,6 +9,7 @@ import { getWordsForReview, syncWordAttempt } from "@/lib/sync";
 import { getProgress, recordWordAttempt, addXP } from "@/lib/progress";
 import { courseData } from "@/data";
 import { VocabWord } from "@/data/types";
+import { notify } from "@/lib/notify";
 
 interface ReviewCard {
   sv: string;
@@ -80,7 +81,7 @@ export default function ReviewPage() {
       for (const word of allVocab) {
         // Check if already in cloud cards
         if (reviewCards.some((c) => c.sv === word.sv)) continue;
-        
+
         // Check word history - prioritize words with more wrong answers
         const history = progress.wordHistory[word.sv];
         if (history && history.wrong > history.correct) {
@@ -151,6 +152,14 @@ export default function ReviewPage() {
   function nextCard() {
     if (currentIdx + 1 >= cards.length) {
       setFinished(true);
+
+      if (finished) {
+        const pct = Math.round((sessionScore.correct / (sessionScore.correct + sessionScore.wrong)) * 100);
+        if (pct >= 80) {
+          notify.success("Repetition klar!", `Du fick ${pct}% rätt på repetitionsövningen.`, "/review");
+        }
+      }
+
       return;
     }
     setCurrentIdx((i) => i + 1);
@@ -176,20 +185,20 @@ export default function ReviewPage() {
       pct >= 80
         ? "var(--correct-bg)"
         : pct >= 50
-        ? "var(--yellow-light)"
-        : "var(--wrong-bg)";
+          ? "var(--yellow-light)"
+          : "var(--wrong-bg)";
     const textColor =
       pct >= 80
         ? "var(--correct)"
         : pct >= 50
-        ? "var(--yellow-dark)"
-        : "var(--wrong)";
+          ? "var(--yellow-dark)"
+          : "var(--wrong)";
     const msg =
       pct >= 80
         ? "Utmärkt! (Excellent!)"
         : pct >= 50
-        ? "Bra jobbat! (Good job!)"
-        : "Fortsätt öva! (Keep practicing!)";
+          ? "Bra jobbat! (Good job!)"
+          : "Fortsätt öva! (Keep practicing!)";
 
     return (
       <>

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Exercise } from "@/data/types";
 import { addXP, incrementStreak, markTopicComplete } from "@/lib/progress";
+import { notify } from "@/lib/notify";
 
 interface Props {
   exercises: Exercise[];
@@ -67,8 +68,20 @@ export default function ExercisePanel({ exercises, topicId }: Props) {
     addXP(score * 10);
     if (pct >= 80) incrementStreak();
     markTopicComplete(topicId, score, exercises.length);
-  }
 
+    // 🔔 Fire local notification based on result
+    if (pct === 100) {
+      notify.perfect();
+    } else if (pct >= 80) {
+      notify.goodScore(pct);
+      if (pct >= 80) {
+        // Also fire streak notification (streak was just incremented above)
+        const progress = require("@/lib/progress").getProgress();
+        notify.streak(progress.streak);
+      }
+    }
+  }
+  
   function restart() {
     setCurrentQ(0);
     setScore(0);

@@ -8,6 +8,7 @@ import { getUser, signOut, onAuthChange } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import AuthModal from "./AuthModal";
 import { LogOut, User, Menu, X } from "lucide-react";
+import NotificationBell from "./NotificationBell";
 
 const navItems = [
   { href: "/", label: "Hem", key: "home" },
@@ -134,6 +135,7 @@ export default function Header() {
               <span>⭐</span>
               <span>{xp} XP</span>
             </div>
+            <NotificationBell />
 
             {isSupabaseConfigured && (
               <>
@@ -200,11 +202,10 @@ export default function Header() {
             <Link
               key={key}
               href={href}
-              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap no-underline border-b-[3px] transition-all ${
-                isActive(key)
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap no-underline border-b-[3px] transition-all ${isActive(key)
                   ? "text-white border-[var(--yellow)]"
                   : "text-white/60 border-transparent hover:text-white/90 hover:bg-white/5"
-              }`}
+                }`}
             >
               {label}
             </Link>
@@ -242,18 +243,19 @@ export default function Header() {
                 )}
               </div>
             )}
-
+            <div className="px-3 pb-2">
+              <NotificationBell mobile />
+            </div>
             {/* Nav grid — 3 columns */}
             <div className="grid grid-cols-3 gap-px p-3">
               {navItems.map(({ href, label, key }) => (
                 <Link
                   key={key}
                   href={href}
-                  className={`flex flex-col items-center justify-center text-center px-2 py-3 rounded-xl text-xs font-medium no-underline transition-all ${
-                    isActive(key)
+                  className={`flex flex-col items-center justify-center text-center px-2 py-3 rounded-xl text-xs font-medium no-underline transition-all ${isActive(key)
                       ? "bg-white/15 text-white"
                       : "text-white/60 hover:bg-white/10 hover:text-white"
-                  }`}
+                    }`}
                 >
                   {label}
                 </Link>

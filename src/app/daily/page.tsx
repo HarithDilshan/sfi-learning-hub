@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import { addXP, incrementStreak, getProgress } from "@/lib/progress";
 import { courseData } from "@/data";
 import { VocabWord } from "@/data/types";
+import { notify } from "@/lib/notify";
 
 interface DailyChallenge {
   date: string;
@@ -224,6 +225,17 @@ export default function DailyChallengePage() {
     const pct = Math.round((correctCount / total) * 100);
     import("@/lib/progress").then(({ markTopicComplete }) => {
       markTopicComplete(`daily-${today}`, correctCount, total);
+
+      // 🔔 Notify based on result
+      const pct = Math.round((correctCount / total) * 100);
+      if (pct === 100) {
+        notify.perfect("Dagens Utmaning");
+      } else if (pct >= 80) {
+        notify.goodScore(pct, "/daily");
+        const progress = getProgress();
+        notify.streak(progress.streak);
+      }
+
     });
 
     window.dispatchEvent(new Event("progress-update"));
@@ -395,22 +407,22 @@ export default function DailyChallengePage() {
       pct >= 80
         ? "var(--correct-bg)"
         : pct >= 50
-        ? "var(--yellow-light)"
-        : "var(--wrong-bg)";
+          ? "var(--yellow-light)"
+          : "var(--wrong-bg)";
     const textColor =
       pct >= 80
         ? "var(--correct)"
         : pct >= 50
-        ? "var(--yellow-dark)"
-        : "var(--wrong)";
+          ? "var(--yellow-dark)"
+          : "var(--wrong)";
     const msg =
       pct === 100
         ? "Perfekt! Alla rätt!"
         : pct >= 80
-        ? "Utmärkt!"
-        : pct >= 50
-        ? "Bra jobbat!"
-        : "Försök igen imorgon!";
+          ? "Utmärkt!"
+          : pct >= 50
+            ? "Bra jobbat!"
+            : "Försök igen imorgon!";
 
     return (
       <>
@@ -769,11 +781,10 @@ export default function DailyChallengePage() {
               >
                 {isCorrect
                   ? "✅ Rätt! +20 XP"
-                  : `❌ Rätt svar: ${
-                      isSentenceStep
-                        ? challenge.sentenceBuild.words.join(" ")
-                        : currentExercise!.correctAnswer
-                    }`}
+                  : `❌ Rätt svar: ${isSentenceStep
+                    ? challenge.sentenceBuild.words.join(" ")
+                    : currentExercise!.correctAnswer
+                  }`}
               </div>
               <button
                 onClick={
