@@ -6,15 +6,16 @@ export interface ProgressData {
   xp: number;
   streak: number;
   completedTopics: Record<string, { score: number; bestScore: number; attempts: number }>;
+  wordHistory: Record<string, { correct: number; wrong: number; lastSeen: string }>;
   lastActivity: string;
   userId: string | null;
 }
 
-// In-memory only — resets on page refresh, loaded from Supabase on login
 let currentProgress: ProgressData = {
   xp: 0,
   streak: 0,
   completedTopics: {},
+  wordHistory: {},
   lastActivity: new Date().toISOString(),
   userId: null,
 };
@@ -25,11 +26,11 @@ export function getProgress(): ProgressData {
 
 export function setUserId(userId: string | null) {
   if (!userId) {
-    // Clear everything on logout
     currentProgress = {
       xp: 0,
       streak: 0,
       completedTopics: {},
+      wordHistory: {},
       lastActivity: new Date().toISOString(),
       userId: null,
     };
@@ -114,3 +115,25 @@ export async function loadCloudProgress(userId: string) {
 
   window.dispatchEvent(new Event("progress-update"));
 }
+
+export function recordWordAttempt(
+  wordSv: string,
+  correct: boolean
+): ProgressData {
+  const existing = currentProgress.wordHistory[wordSv] || {
+    correct: 0,
+    wrong: 0,
+    lastSeen: "",
+  };
+
+  currentProgress.wordHistory[wordSv] = {
+    correct: existing.correct + (correct ? 1 : 0),
+    wrong: existing.wrong + (correct ? 0 : 1),
+    lastSeen: new Date().toISOString(),
+  };
+
+  currentProgress.lastActivity = new Date().toISOString();
+  window.dispatchEvent(new Event("progress-update"));
+  return currentProgress;
+}
+

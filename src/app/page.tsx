@@ -70,12 +70,35 @@ export default function Home() {
           {/* Quick links to new features */}
           <div className="grid grid-cols-2 gap-3">
             <Link href="/review" className="rounded-xl p-5 no-underline transition-all hover:-translate-y-1 hover:shadow-lg"
-              style={{ background: "var(--forest-light)", border: "1px solid rgba(0,0,0,0.06)" }}>
+              style={{ background: "var(--forest-light)", border: "1px solid rgba(45,90,61,0.1)" }}>
               <div className="text-2xl mb-2">🔁</div>
               <h3 className="font-semibold text-sm" style={{ color: "var(--forest)" }}>Repetition</h3>
               <p className="text-xs mt-1" style={{ color: "var(--text-light)" }}>Öva svåra ord</p>
             </Link>
-
+            <Link href="/listening" className="rounded-xl p-5 no-underline transition-all hover:-translate-y-1 hover:shadow-lg"
+              style={{ background: "var(--blue-light)", border: "1px solid rgba(0,91,153,0.1)" }}>
+              <div className="text-2xl mb-2">👂</div>
+              <h3 className="font-semibold text-sm" style={{ color: "var(--blue)" }}>Hörförståelse</h3>
+              <p className="text-xs mt-1" style={{ color: "var(--text-light)" }}>Träna lyssnandet</p>
+            </Link>
+            <Link href="/sentences" className="rounded-xl p-5 no-underline transition-all hover:-translate-y-1 hover:shadow-lg"
+              style={{ background: "var(--yellow-light)", border: "1px solid rgba(212,168,0,0.15)" }}>
+              <div className="text-2xl mb-2">🧩</div>
+              <h3 className="font-semibold text-sm" style={{ color: "var(--yellow-dark)" }}>Meningsbyggare</h3>
+              <p className="text-xs mt-1" style={{ color: "var(--text-light)" }}>Bygg meningar</p>
+            </Link>
+            <Link href="/leaderboard" className="rounded-xl p-5 no-underline transition-all hover:-translate-y-1 hover:shadow-lg"
+              style={{ background: "var(--warm)", border: "1px solid rgba(0,0,0,0.06)" }}>
+              <div className="text-2xl mb-2">🏆</div>
+              <h3 className="font-semibold text-sm" style={{ color: "var(--text)" }}>Topplista</h3>
+              <p className="text-xs mt-1" style={{ color: "var(--text-light)" }}>Se din ranking</p>
+            </Link>
+            <Link href="/profile" className="rounded-xl p-5 no-underline transition-all hover:-translate-y-1 hover:shadow-lg"
+              style={{ background: "var(--warm)", border: "1px solid rgba(0,0,0,0.06)" }}>
+              <div className="text-2xl mb-2">👤</div>
+              <h3 className="font-semibold text-sm" style={{ color: "var(--text)" }}>Min Profil</h3>
+              <p className="text-xs mt-1" style={{ color: "var(--text-light)" }}>Se din framsteg</p>
+            </Link>
           </div>
         </div>
         <div className="mb-8">
