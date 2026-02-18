@@ -133,7 +133,7 @@ export const metadata: Metadata = {
 
   // 👇 Paste your code from Google Search Console here
   verification: {
-    google: "zsthmqt9eIySt5tqiO4iB37PMq2FLmcli8aoL3gGXjI",
+    google: "4RUGrvDxFFU-ZmxSDX8R4WHEpBSqPgiZQsoOyXnzucQ",
   },
 };
 
