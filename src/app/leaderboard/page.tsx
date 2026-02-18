@@ -358,21 +358,7 @@ export default function LeaderboardPage() {
                 );
               })}
             </div>
-          </div><div
-              className="hidden sm:grid items-center px-6 py-3 text-xs font-semibold uppercase tracking-wide"
-              style={{
-                gridTemplateColumns: "50px 1fr 80px 70px 80px 90px",
-                background: "var(--warm)",
-                color: "var(--text-light)",
-              }}
-            >
-              <span>Rank</span>
-              <span>Namn</span>
-              <span className="text-center">XP</span>
-              <span className="text-center">Streak</span>
-              <span className="text-center">Ämnen</span>
-              <span className="text-right">Senast</span>
-            </div>
+          </div>
         </div>
       </div>
       <Footer />
