@@ -7,6 +7,14 @@ import Footer from "@/components/Footer";
 import { getLeaderboard, getUserRank, updateDisplayName, LeaderboardEntry } from "@/lib/sync";
 import { getUser } from "@/lib/auth";
 import { getProgress } from "@/lib/progress";
+import type { Metadata } from "next";
+
+export const leaderboardMetadata: Metadata = {
+  title: "Topplista — Swedish Learner Leaderboard",
+  description:
+    "See the top Swedish learners on Lär dig Svenska. Earn XP by completing lessons and daily challenges to climb the leaderboard.",
+  alternates: { canonical: "/leaderboard" },
+};
 
 export default function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);

@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import { courseData } from "@/data";
 import { addXP, incrementStreak, getProgress } from "@/lib/progress";
 import { VocabWord } from "@/data/types";
+import type { Metadata } from "next";
 
 type Difficulty = "easy" | "medium" | "hard";
 type ChallengeType = "word-pick" | "phrase-pick" | "type-word" | "type-phrase";
@@ -18,6 +19,13 @@ interface Challenge {
   options?: string[]; // For pick modes
   hint?: string;
 }
+
+export const listeningMetadata: Metadata = {
+  title: "Hörförståelse — Swedish Listening Comprehension",
+  description:
+    "Practice Swedish listening comprehension with three difficulty levels. Hear Swedish words and phrases, then answer questions. Free SFI listening practice.",
+  alternates: { canonical: "/listening" },
+};
 
 export default function ListeningPage() {
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);

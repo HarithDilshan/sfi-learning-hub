@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import type { Metadata } from "next";
+
 // ─── STORY DATA ──────────────────────────────────────────────────────────────
 interface StoryWord {
   word: string;
@@ -299,6 +301,13 @@ const stories: Story[] = [
     ],
   },
 ];
+
+export const berattelserMetadata: Metadata = {
+  title: "Berättelser — Swedish Mini Stories for SFI Learners",
+  description:
+    "Short Swedish stories for all SFI levels: Ahmed's first day at SFI (Kurs A), Sara shopping (Kurs B), Fatima at the doctor (Kurs C), Omar's job interview (Kurs D). Reading with comprehension quizzes.",
+  alternates: { canonical: "/berattelser" },
+};
 
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 export default function MiniStoriesPage() {

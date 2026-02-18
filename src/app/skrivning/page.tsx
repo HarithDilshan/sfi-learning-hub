@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import type { Metadata } from "next";
+
 // ─── WRITING PROMPTS DATA ───────────────────────────────────────────────────
 const writingPrompts = [
   // Kurs A — Beginner
@@ -171,6 +173,13 @@ const levelColors: Record<string, string> = {
   B: "#005B99",
   C: "#6B3FA0",
   D: "#C0392B",
+};
+
+export const skrivningMetadata: Metadata = {
+  title: "Skrivövning — Swedish Writing Practice",
+  description:
+    "Translate English sentences into Swedish from scratch — no multiple choice. Smart keyword scoring gives instant feedback. Advanced writing practice for SFI learners.",
+  alternates: { canonical: "/skrivning" },
 };
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────

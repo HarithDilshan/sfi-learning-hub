@@ -10,6 +10,7 @@ import { getProgress, recordWordAttempt, addXP } from "@/lib/progress";
 import { courseData } from "@/data";
 import { VocabWord } from "@/data/types";
 import { notify } from "@/lib/notify";
+import type { Metadata } from "next";
 
 interface ReviewCard {
   sv: string;
@@ -19,6 +20,13 @@ interface ReviewCard {
 }
 
 type ReviewMode = "flashcard" | "type" | "listen";
+
+export const reviewMetadata: Metadata = {
+  title: "Repetition — Swedish Spaced Repetition Practice",
+  description:
+    "Revisit your weak Swedish words with spaced repetition. The smarter way to remember vocabulary long-term. Free SFI practice tool.",
+  alternates: { canonical: "/review" },
+};
 
 export default function ReviewPage() {
   const [cards, setCards] = useState<ReviewCard[]>([]);

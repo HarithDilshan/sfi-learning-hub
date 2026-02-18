@@ -5,6 +5,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { addXP, incrementStreak } from "@/lib/progress";
+import type { Metadata } from "next";
 
 interface SentenceChallenge {
   english: string;
@@ -196,6 +197,13 @@ const sentenceChallenges: SentenceChallenge[] = [
     level: "D",
   },
 ];
+
+export const sentencesMetadata: Metadata = {
+  title: "Meningsbyggare — Swedish Sentence Builder",
+  description:
+    "Drag and arrange words to build correct Swedish sentences. Learn the V2 word order rule and master Swedish sentence structure. Free SFI grammar practice.",
+  alternates: { canonical: "/sentences" },
+};
 
 export default function SentenceBuilderPage() {
   const [selectedLevel, setSelectedLevel] = useState<

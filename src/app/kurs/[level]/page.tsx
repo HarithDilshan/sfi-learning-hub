@@ -7,7 +7,48 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getCourse } from "@/lib/content";
 import { CourseLevel } from "@/data/types";
+import type { Metadata } from "next";
 
+const levelNames: Record<string, string> = {
+  A: "Kurs A — Nybörjare (Beginner)",
+  B: "Kurs B — Grundläggande (Elementary)",
+  C: "Kurs C — Mellanliggande (Intermediate)",
+  D: "Kurs D — Avancerad (Advanced)",
+  G: "Grammatik (Swedish Grammar)",
+};
+
+const levelDescs: Record<string, string> = {
+  A: "Learn Swedish from scratch — the alphabet, greetings, numbers, colors and family. Free interactive SFI Kurs A lessons for absolute beginners.",
+  B: "Build everyday Swedish sentences — food, weather, telling time, and daily routines. Free interactive SFI Kurs B lessons.",
+  C: "Swedish for intermediate learners — work, health, housing vocabulary and longer texts. Free interactive SFI Kurs C lessons.",
+  D: "Advanced Swedish — society, news, formal writing and reading comprehension. Free interactive SFI Kurs D lessons.",
+  G: "Complete Swedish grammar reference — verb groups, noun genders, adjective agreement, sentence structure and more.",
+};
+
+export async function generateKursMetadata({
+  params,
+}: {
+  params: { level: string };
+}): Promise<Metadata> {
+  const level = params.level.toUpperCase();
+  return {
+    title: levelNames[level] ?? `Swedish Kurs ${level}`,
+    description: levelDescs[level] ?? `Free Swedish SFI Kurs ${level} lessons.`,
+    alternates: {
+      canonical: `/kurs/${level}`,
+    },
+    openGraph: {
+      title: `${levelNames[level] ?? `Kurs ${level}`} | Lär dig Svenska`,
+      description: levelDescs[level] ?? `Free Swedish SFI Kurs ${level} lessons.`,
+      url: `/kurs/${level}`,
+    },
+  };
+}
+
+/* export async function generateMetadata({ params }: { params: { level: string } }) {
+  return generateKursMetadata({ params });
+}
+ */
 export default function KursPage() {
   const params = useParams();
   const level = params.level as string;

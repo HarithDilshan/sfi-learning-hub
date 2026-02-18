@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import type { Metadata } from "next";
 // ─── PRONUNCIATION WORDS ─────────────────────────────────────────────────────
 interface PronunciationWord {
   sv: string;
@@ -47,6 +48,21 @@ const pronunciationWords: PronunciationWord[] = [
   { sv: "utbildning", en: "education", category: "Society", tip: "OOT-bild-ning — 'ut' = out, 'bildning' = formation/cultivation" },
   { sv: "jämställdhet", en: "gender equality", category: "Society", tip: "yem-STELD-het — starts with the 'y' sound (j = y)" },
 ];
+
+export const uttalMetadata: Metadata = {
+  title: "Uttalsövning — Swedish Pronunciation Practice",
+  description:
+    "Record yourself speaking Swedish and compare with native text-to-speech. Master tricky Swedish sounds: sj, tj, ö, å, lj, hj. Free pronunciation recorder for SFI learners.",
+  alternates: { canonical: "/uttal" },
+  keywords: [
+    "Swedish pronunciation",
+    "learn Swedish sounds",
+    "sj sound Swedish",
+    "Swedish vowels",
+    "Swedish accent",
+    "SFI pronunciation",
+  ],
+};
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function PronunciationRecorderPage() {

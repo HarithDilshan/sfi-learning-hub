@@ -8,6 +8,7 @@ import { addXP, incrementStreak, getProgress } from "@/lib/progress";
 import { courseData } from "@/data";
 import { VocabWord } from "@/data/types";
 import { notify } from "@/lib/notify";
+import type { Metadata } from "next";
 
 interface DailyChallenge {
   date: string;
@@ -47,6 +48,13 @@ function seededShuffle<T>(arr: T[], rng: () => number): T[] {
   }
   return shuffled;
 }
+
+export const dailyMetadata: Metadata = {
+  title: "Dagens utmaning — Daily Swedish Challenge",
+  description:
+    "A fresh set of Swedish exercises every day — vocabulary, translation, and listening. Same challenge for all users each day. Earn XP and build streaks!",
+  alternates: { canonical: "/daily" },
+};
 
 export default function DailyChallengePage() {
   const [currentStep, setCurrentStep] = useState(0); // 0=intro, 1-5=exercises, 6=results

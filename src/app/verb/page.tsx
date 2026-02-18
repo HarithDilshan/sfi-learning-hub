@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import type { Metadata } from "next";
+
 // ─── VERB DATA ───────────────────────────────────────────────────────────────
 // Swedish has 4 verb groups based on how they conjugate
 interface Verb {
@@ -88,6 +90,21 @@ function buildDrillQueue(verbList: Verb[], tenseFilter: Tense | "all"): DrillIte
   }
   return items.sort(() => Math.random() - 0.5);
 }
+
+export const verbMetadata: Metadata = {
+  title: "Verbträning — Swedish Verb Conjugation Trainer",
+  description:
+    "Drill all 4 Swedish verb groups across 4 tenses: presens, imperfekt, supinum, imperativ. 30 verbs with full conjugation tables. Free SFI verb practice.",
+  alternates: { canonical: "/verb" },
+  keywords: [
+    "Swedish verb conjugation",
+    "Swedish verbs",
+    "Swedish grammar",
+    "verb groups Swedish",
+    "presens imperfekt Swedish",
+    "SFI grammar",
+  ],
+};
 
 export default function VerbConjugationPage() {
   const [selectedGroup, setSelectedGroup] = useState<number | "all">("all");

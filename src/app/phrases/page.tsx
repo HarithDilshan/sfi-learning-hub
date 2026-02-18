@@ -8,6 +8,20 @@ import { getPhrases } from "@/lib/content";
 import { PhraseCategory } from "@/data/types";
 import { speak } from "@/lib/speech";
 import { Volume2 } from "lucide-react";
+import type { Metadata } from "next";
+
+export const phrasesMetadata: Metadata = {
+  title: "Vardagsfraser — Everyday Swedish Phrases",
+  description:
+    "Practical Swedish phrases for everyday life in Sweden — at the store, on the bus, at the bank, school, and on the phone. Free SFI learning resource.",
+  alternates: { canonical: "/phrases" },
+  openGraph: {
+    title: "Everyday Swedish Phrases | Lär dig Svenska",
+    description:
+      "Practical Swedish phrases for everyday life in Sweden. Perfect for SFI students.",
+    url: "/phrases",
+  },
+};
 
 export default function PhrasesPage() {
   const [phrasesData, setPhrasesData] = useState<PhraseCategory[]>([]);
