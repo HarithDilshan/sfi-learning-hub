@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Serif_Display, Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import PWARegister from "@/components/PWARegister";
+import AppWrapper from "@/components/AppWrapper"; // 👈 ADD THIS
 
 const dmSerif = DM_Serif_Display({
   weight: ["400"],
@@ -23,7 +24,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-// ── CHANGE THIS to your real Vercel URL or custom domain ──────
 const BASE_URL = "https://sfi-learning-hub.vercel.app";
 
 export const metadata: Metadata = {
@@ -131,26 +131,19 @@ export const metadata: Metadata = {
     userScalable: false,
   },
 
-  // 👇 Paste your code from Google Search Console here
   verification: {
     google: "4RUGrvDxFFU-ZmxSDX8R4WHEpBSqPgiZQsoOyXnzucQ",
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="sv">
       <head>
-        {/* Preconnect to Google Fonts for performance */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className={`${dmSerif.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
-        {/* JSON-LD: tells Google exactly what this site is */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -174,7 +167,6 @@ export default function RootLayout({
                   height: 32,
                 },
               },
-              // Enables Google Sitelinks Search Box (when your site is big enough)
               potentialAction: {
                 "@type": "SearchAction",
                 target: {
@@ -187,7 +179,7 @@ export default function RootLayout({
           }}
         />
         <PWARegister />
-        {children}
+        <AppWrapper>{children}</AppWrapper> {/* 👈 WRAP children HERE */}
       </body>
     </html>
   );

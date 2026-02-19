@@ -12,6 +12,8 @@ import ExercisePanel from "@/components/ExercisePanel";
 import Flashcards from "@/components/Flashcards";
 import { getTopic } from "@/lib/content";
 import { Topic } from "@/data/types";
+import { LoadingState } from "@/components/LoadingSystem";
+
 
 const sections = [
   { key: "vocabulary", label: "📚 Vocabulary" },
@@ -25,7 +27,7 @@ export default function TopicPage() {
   const params = useParams();
   const level = params.level as string;
   const topicId = params.topicId as string;
-const [activeSection, setActiveSection] = useState("vocabulary");
+  const [activeSection, setActiveSection] = useState("vocabulary");
   const [topic, setTopic] = useState<Topic | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,8 +42,8 @@ const [activeSection, setActiveSection] = useState("vocabulary");
     return (
       <>
         <Header />
-        <div className="max-w-[1100px] mx-auto px-8 py-20 text-center" style={{ color: "var(--text-light)" }}>
-          Loading...
+        <div className="max-w-[1100px] mx-auto px-8 py-10">
+          <LoadingState type="lesson" message={`Laddar lektion...`} />
         </div>
         <Footer />
       </>
@@ -82,11 +84,10 @@ const [activeSection, setActiveSection] = useState("vocabulary");
               <button
                 key={s.key}
                 onClick={() => setActiveSection(s.key)}
-                className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-sm transition-all cursor-pointer mb-1 text-left ${
-                  activeSection === s.key
+                className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-sm transition-all cursor-pointer mb-1 text-left ${activeSection === s.key
                     ? "bg-[var(--blue-light)] text-[var(--blue)] font-semibold"
                     : "hover:bg-[var(--warm)]"
-                }`}
+                  }`}
               >
                 {s.label}
               </button>

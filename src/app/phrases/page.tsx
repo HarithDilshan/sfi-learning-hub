@@ -9,6 +9,7 @@ import { PhraseCategory } from "@/data/types";
 import { speak } from "@/lib/speech";
 import { Volume2 } from "lucide-react";
 import type { Metadata } from "next";
+import { LoadingState } from "@/components/LoadingSystem";
 
 export const phrasesMetadata: Metadata = {
   title: "Vardagsfraser — Everyday Swedish Phrases",
@@ -25,10 +26,26 @@ export const phrasesMetadata: Metadata = {
 
 export default function PhrasesPage() {
   const [phrasesData, setPhrasesData] = useState<PhraseCategory[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getPhrases().then(setPhrasesData);
+    getPhrases().then((data) => {
+      setPhrasesData(data);
+      setLoading(false);
+    });
   }, []);
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <div className="max-w-[1100px] mx-auto px-4 md:px-8 py-10 pb-20 animate-fade-in">
+          <LoadingState type="content" />
+        </div>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>

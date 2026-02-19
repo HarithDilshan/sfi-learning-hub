@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import { getCourse } from "@/lib/content";
 import { CourseLevel } from "@/data/types";
 import type { Metadata } from "next";
+import { LoadingState } from "@/components/LoadingSystem";
 
 const levelNames: Record<string, string> = {
   A: "Kurs A — Nybörjare (Beginner)",
@@ -66,8 +67,8 @@ export default function KursPage() {
     return (
       <>
         <Header />
-        <div className="max-w-[1100px] mx-auto px-8 py-20 text-center" style={{ color: "var(--text-light)" }}>
-          Loading...
+        <div className="max-w-[1100px] mx-auto px-8 py-10">
+          <LoadingState type="content" />
         </div>
         <Footer />
       </>

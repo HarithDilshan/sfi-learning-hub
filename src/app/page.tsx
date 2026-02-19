@@ -220,7 +220,7 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="flex gap-5 flex-wrap">
-                  {[["13+", "Topics"], ["5 Levels", "A → D + Grammar"], ["Free", "Always"]].map(([num, lbl]) => (
+                  {[["50+", "Topics"], ["5 Levels", "A → D + Grammar"], ["Free", "Always"]].map(([num, lbl]) => (
                     <div key={lbl} className="text-white">
                       <div className="text-xl font-bold" style={{ color: "var(--yellow)" }}>{num}</div>
                       <div className="text-xs text-white/55 font-medium">{lbl}</div>
