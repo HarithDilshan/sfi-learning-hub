@@ -37,13 +37,14 @@ export default function PhrasesPage() {
 
   if (loading) {
     return (
-      <>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--warm)" }}>
+
         <Header />
-        <div className="max-w-[1100px] mx-auto px-4 md:px-8 py-10 pb-20 animate-fade-in">
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <LoadingState type="content" />
         </div>
         <Footer />
-      </>
+      </div>
     );
   }
 

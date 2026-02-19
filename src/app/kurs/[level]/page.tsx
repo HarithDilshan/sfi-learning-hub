@@ -65,13 +65,13 @@ export default function KursPage() {
 
   if (loading) {
     return (
-      <>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--warm)" }}>
         <Header />
-        <div className="max-w-[1100px] mx-auto px-8 py-10">
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <LoadingState type="content" />
         </div>
         <Footer />
-      </>
+      </div>
     );
   }
 

@@ -40,13 +40,23 @@ export default function TopicPage() {
 
   if (loading) {
     return (
-      <>
-        <Header />
-        <div className="max-w-[1100px] mx-auto px-8 py-10">
-          <LoadingState type="lesson" message={`Laddar lektion...`} />
-        </div>
-        <Footer />
-      </>
+      <div style={{ 
+      minHeight: "100vh", 
+      display: "flex", 
+      flexDirection: "column",
+      background: "var(--warm)" 
+    }}>
+      <Header />
+      <div style={{ 
+        flex: 1, 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center" 
+      }}>
+        <LoadingState type="lesson" message="Laddar lektion..." />
+      </div>
+      <Footer />
+    </div>
     );
   }
 
