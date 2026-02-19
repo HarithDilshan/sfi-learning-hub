@@ -164,25 +164,30 @@ function XPLoader({ message = "Hämtar data..." }: { message?: string }) {
 // ════════════════════════════════════════════════════════════════
 function SkeletonCards() {
   return (
-    <div className="sfi-skeleton-wrap">
-      {[0, 1, 2, 3].map((i) => (
+    <div className="sfi-skeleton-grid">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
         <div
           key={i}
-          className="sfi-skeleton-card"
-          style={{ animationDelay: `${i * 0.1}s` }}
+          className="sfi-skeleton-topic-card"
+          style={{ animationDelay: `${i * 0.08}s` }}
         >
-          <div className="sfi-skeleton-icon sfi-shimmer" />
-          <div className="sfi-skeleton-lines">
-            <div className="sfi-skeleton-line sfi-shimmer" style={{ width: "55%", animationDelay: `${i * 0.1 + 0.05}s` }} />
-            <div className="sfi-skeleton-line sfi-shimmer" style={{ width: "80%", animationDelay: `${i * 0.1 + 0.1}s` }} />
-            <div className="sfi-skeleton-line sfi-shimmer" style={{ width: "40%", animationDelay: `${i * 0.1 + 0.15}s` }} />
+          <div className="sfi-skeleton-topic-icon sfi-shimmer" />
+
+          <div className="sfi-skeleton-topic-lines">
+            <div className="sfi-skeleton-topic-title sfi-shimmer" />
+            <div className="sfi-skeleton-topic-sub sfi-shimmer" />
           </div>
-          <div className="sfi-skeleton-badge sfi-shimmer" />
+
+          <div className="sfi-skeleton-topic-tags">
+            <div className="sfi-skeleton-tag sfi-shimmer" />
+            <div className="sfi-skeleton-tag sfi-shimmer" />
+          </div>
         </div>
       ))}
     </div>
   );
 }
+
 
 // ════════════════════════════════════════════════════════════════
 // 5. SVENSKA SPINNER — used when loading exercises/quiz
@@ -233,10 +238,10 @@ export function LoadingState({ type, message }: LoadingStateProps) {
     <>
       <style>{CSS}</style>
       <div className={`sfi-loading-container ${isExercise ? "sfi-loading-dark" : "sfi-loading-light"}`}>
-        {type === "page"     && <FlagPulse     message={message} />}
-        {type === "lesson"   && <WordTypewriter message={message} />}
-        {type === "data"     && <XPLoader       message={message} />}
-        {type === "content"  && <SkeletonCards />}
+        {type === "page" && <FlagPulse message={message} />}
+        {type === "lesson" && <WordTypewriter message={message} />}
+        {type === "data" && <XPLoader message={message} />}
+        {type === "content" && <SkeletonCards />}
         {type === "exercise" && <SvenskaSpinner message={message} />}
       </div>
     </>
@@ -460,45 +465,63 @@ const CSS = `
   }
 
   /* ── Skeleton Cards ── */
-  .sfi-skeleton-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    width: 360px;
-  }
-  .sfi-skeleton-card {
-    background: white;
-    border-radius: 12px;
-    padding: 18px 20px;
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    border: 1px solid rgba(0,0,0,0.05);
-    animation: sfi-fade-slide 0.4s ease both;
-  }
-  .sfi-skeleton-icon {
-    width: 42px; height: 42px;
-    border-radius: 10px;
-    flex-shrink: 0;
-  }
-  .sfi-skeleton-lines {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-top: 4px;
-  }
-  .sfi-skeleton-line {
-    height: 10px;
-    border-radius: 5px;
-  }
-  .sfi-skeleton-badge {
-    width: 52px; height: 22px;
-    border-radius: 11px;
-    flex-shrink: 0;
-    align-self: center;
-  }
+ .sfi-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  width: 100%;
+  max-width: 1100px;
+}
+
+.sfi-skeleton-topic-card {
+  background: white;
+  border-radius: 18px;
+  padding: 28px;
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.05);
+  border: 1px solid rgba(0,0,0,0.05);
+  animation: sfi-fade-slide 0.4s ease both;
+}
+
+.sfi-skeleton-topic-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.sfi-skeleton-topic-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sfi-skeleton-topic-title {
+  height: 18px;
+  width: 60%;
+  border-radius: 6px;
+}
+
+.sfi-skeleton-topic-sub {
+  height: 14px;
+  width: 85%;
+  border-radius: 6px;
+}
+
+.sfi-skeleton-topic-tags {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+}
+
+.sfi-skeleton-tag {
+  height: 22px;
+  width: 70px;
+  border-radius: 12px;
+}
+
   .sfi-shimmer {
     background: linear-gradient(90deg, #F0EBE1 25%, #E4DDD4 50%, #F0EBE1 75%);
     background-size: 400px 100%;
