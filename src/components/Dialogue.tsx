@@ -1,7 +1,7 @@
 "use client";
 
 import { DialogueLine } from "@/data/types";
-import { speak } from "@/lib/speech";
+import { speak } from "@/lib/tts";
 import { Volume2 } from "lucide-react";
 
 export default function Dialogue({ lines }: { lines: DialogueLine[] }) {

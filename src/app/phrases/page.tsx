@@ -6,10 +6,10 @@ import Footer from "@/components/Footer";
 import { useState, useEffect } from "react";
 import { getPhrases } from "@/lib/content";
 import { PhraseCategory } from "@/data/types";
-import { speak } from "@/lib/speech";
 import { Volume2 } from "lucide-react";
 import type { Metadata } from "next";
 import { LoadingState } from "@/components/LoadingSystem";
+import { speak } from "@/lib/tts";
 
 export const phrasesMetadata: Metadata = {
   title: "Vardagsfraser — Everyday Swedish Phrases",

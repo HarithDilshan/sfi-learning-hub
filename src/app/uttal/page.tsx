@@ -5,6 +5,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { speak } from "@/lib/tts";
 // ─── PRONUNCIATION WORDS ─────────────────────────────────────────────────────
 interface PronunciationWord {
   sv: string;
@@ -101,16 +102,6 @@ export default function PronunciationRecorderPage() {
   const wordKey = word?.sv;
 
   const categories = ["all", ...Array.from(new Set(pronunciationWords.map(w => w.category)))];
-
-  function speakNative(text: string) {
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "sv-SE";
-    utterance.rate = 0.8;
-    utterance.onstart = () => setIsPlayingNative(true);
-    utterance.onend = () => setIsPlayingNative(false);
-    speechSynthesis.speak(utterance);
-  }
 
   async function startRecording() {
     try {
@@ -302,7 +293,7 @@ export default function PronunciationRecorderPage() {
               STEG 1 — Lyssna på native-ljud:
             </div>
             <button
-              onClick={() => speakNative(word.sv)}
+              onClick={() => speak(word.sv, {}, "sv")}
               style={{
                 width: "100%", padding: "16px", borderRadius: "12px",
                 background: isPlayingNative ? "var(--blue)" : "var(--blue-light)",
@@ -366,7 +357,7 @@ export default function PronunciationRecorderPage() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {/* Native */}
-                <button onClick={() => speakNative(word.sv)} style={{
+                <button onClick={() => speak(word.sv, {}, "sv")} style={{
                   padding: "14px", borderRadius: "10px",
                   background: "var(--blue-light)", border: "2px solid var(--blue)",
                   color: "var(--blue)", fontWeight: 700, cursor: "pointer", fontSize: "0.9rem",

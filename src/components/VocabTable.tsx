@@ -1,7 +1,7 @@
 "use client";
 
 import { VocabWord } from "@/data/types";
-import { speak } from "@/lib/speech";
+import { speak } from "@/lib/tts";
 import { Volume2 } from "lucide-react";
 
 export default function VocabTable({ words }: { words: VocabWord[] }) {

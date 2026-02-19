@@ -9,6 +9,9 @@ import { courseData } from "@/data";
 import { VocabWord } from "@/data/types";
 import { notify } from "@/lib/notify";
 import type { Metadata } from "next";
+import { getUser } from "@/lib/auth";
+import { loadTopicScores } from "@/lib/sync";
+import { speak } from "@/lib/tts";
 
 interface DailyChallenge {
   date: string;
@@ -65,16 +68,30 @@ export default function DailyChallengePage() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [sentencePlaced, setSentencePlaced] = useState<string[]>([]);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+  const [checkingCompletion, setCheckingCompletion] = useState(true);
 
   const today = new Date().toISOString().split("T")[0];
 
   // Check if already completed today
   useEffect(() => {
-    const progress = getProgress();
-    const lastDaily = progress.completedTopics[`daily-${today}`];
-    if (lastDaily) {
-      setAlreadyCompleted(true);
+    async function check() {
+      const progress = getProgress();
+      if (progress.completedTopics[`daily-${today}`]) {
+        setAlreadyCompleted(true);
+        setCheckingCompletion(false); 
+        return;
+      }
+      // Also check Supabase for cross-device
+      const user = await getUser();
+      if (user) {
+        const scores = await loadTopicScores(user.id);
+        if (scores.some((s) => s.topic_id === `daily-${today}`)) {
+          setAlreadyCompleted(true);
+        }
+      }
+      setCheckingCompletion(false);
     }
+    check();
   }, [today]);
 
   // Generate today's challenge deterministically
@@ -176,14 +193,6 @@ export default function DailyChallengePage() {
     };
   }, [today]);
 
-  function speak(text: string) {
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "sv-SE";
-    utterance.rate = 0.8;
-    speechSynthesis.speak(utterance);
-  }
-
   function handleMC(idx: number) {
     if (answered) return;
     setAnswered(true);
@@ -229,7 +238,6 @@ export default function DailyChallengePage() {
     if (correctCount === total) incrementStreak();
 
     // Mark as completed for today
-    const progress = getProgress();
     const pct = Math.round((correctCount / total) * 100);
     import("@/lib/progress").then(({ markTopicComplete }) => {
       markTopicComplete(`daily-${today}`, correctCount, total);
@@ -345,7 +353,11 @@ export default function DailyChallengePage() {
             </div>
           </div>
 
-          {alreadyCompleted ? (
+          {checkingCompletion ? (
+            <div style={{ textAlign: "center", padding: "24px", color: "var(--text-light)" }}>
+              Kontrollerar...
+            </div>
+          ) : alreadyCompleted ? (
             <div
               className="rounded-xl p-6 text-center"
               style={{
@@ -788,7 +800,7 @@ export default function DailyChallengePage() {
                 }}
               >
                 {isCorrect
-                  ? "✅ Rätt! +20 XP"
+                  ? "✅ Rätt!"
                   : `❌ Rätt svar: ${isSentenceStep
                     ? challenge.sentenceBuild.words.join(" ")
                     : currentExercise!.correctAnswer

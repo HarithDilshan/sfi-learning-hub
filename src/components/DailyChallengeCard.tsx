@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getProgress } from "@/lib/progress";
 import { courseData } from "@/data";
 import { VocabWord } from "@/data/types";
+import { speak } from "@/lib/tts";
 
 // Same seeded random as daily challenge page
 function seededRandom(seed: string) {
@@ -110,12 +111,7 @@ export default function DailyChallengeCard() {
               </span>
             </div>
             <button
-              onClick={() => {
-                const utterance = new SpeechSynthesisUtterance(wordOfDay?.sv || "");
-                utterance.lang = "sv-SE";
-                utterance.rate = 0.85;
-                speechSynthesis.speak(utterance);
-              }}
+              onClick={() => {speak(wordOfDay?.sv);}}
               className="w-8 h-8 rounded-full flex items-center justify-center text-sm cursor-pointer border-none"
               style={{ background: "rgba(255,255,255,0.2)" }}
             >

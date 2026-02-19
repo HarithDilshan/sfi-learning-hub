@@ -8,6 +8,7 @@ import { getLeaderboard, getUserRank, updateDisplayName, LeaderboardEntry } from
 import { getUser } from "@/lib/auth";
 import { getProgress } from "@/lib/progress";
 import type { Metadata } from "next";
+import { LoadingState } from "@/components/LoadingSystem";
 
 export const leaderboardMetadata: Metadata = {
   title: "Topplista — Swedish Learner Leaderboard",
@@ -213,9 +214,7 @@ export default function LeaderboardPage() {
 
         {/* Leaderboard table */}
         {loading ? (
-          <div className="text-center py-16" style={{ color: "var(--text-light)" }}>
-            Laddar topplistan...
-          </div>
+          <LoadingState type="data" message="Hämtar topplistan..." />
         ) : entries.length === 0 ? (
           <div
             className="text-center py-16 rounded-xl"

@@ -1,11 +1,12 @@
 "use client";
 
 import { syncProgressToCloud, syncTopicScore, loadProgressFromCloud, loadTopicScores } from "./sync";
+import { loadWeeklyGoal, updateWeeklyProgress } from "./weekly-goals";
 
 export interface ProgressData {
   xp: number;
   streak: number;
-  completedTopics: Record<string, { score: number; bestScore: number; attempts: number }>;
+  completedTopics: Record<string, { score: number; bestScore: number; attempts: number,completedAt: string; }>;
   wordHistory: Record<string, { correct: number; wrong: number; lastSeen: string }>;
   lastActivity: string;
   userId: string | null;
@@ -19,6 +20,16 @@ let currentProgress: ProgressData = {
   lastActivity: new Date().toISOString(),
   userId: null,
 };
+
+if (typeof window !== "undefined") {
+  try {
+    const saved = localStorage.getItem("sfi_progress");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      currentProgress = { ...currentProgress, ...parsed, userId: null };
+    }
+  } catch { }
+}
 
 export function getProgress(): ProgressData {
   return currentProgress;
@@ -44,6 +55,10 @@ export function addXP(amount: number): ProgressData {
   currentProgress.xp += amount;
   currentProgress.lastActivity = new Date().toISOString();
 
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("sfi_progress", JSON.stringify(currentProgress)); } catch { }
+  }
+
   if (currentProgress.userId) {
     syncProgressToCloud(currentProgress.userId, {
       xp: currentProgress.xp,
@@ -59,6 +74,10 @@ export function addXP(amount: number): ProgressData {
 export function incrementStreak(): ProgressData {
   currentProgress.streak += 1;
   currentProgress.lastActivity = new Date().toISOString();
+
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("sfi_progress", JSON.stringify(currentProgress)); } catch { }
+  }
 
   if (currentProgress.userId) {
     syncProgressToCloud(currentProgress.userId, {
@@ -81,12 +100,26 @@ export function markTopicComplete(
   const pct = Math.round((score / total) * 100);
   const bestScore = existing ? Math.max(existing.bestScore, pct) : pct;
   const attempts = existing ? existing.attempts + 1 : 1;
+  const xpEarned = score * 10;
 
-  currentProgress.completedTopics[topicId] = { score: pct, bestScore, attempts };
+  currentProgress.completedTopics[topicId] = { score: pct, bestScore, attempts,completedAt: existing?.completedAt || new Date().toISOString(), };
+  currentProgress.xp += xpEarned;
   currentProgress.lastActivity = new Date().toISOString();
 
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("sfi_progress", JSON.stringify(currentProgress)); } catch { }
+  }
+
   if (currentProgress.userId) {
-    syncTopicScore(currentProgress.userId, topicId, pct, bestScore, attempts, score * 10);
+    syncTopicScore(currentProgress.userId, topicId, pct, bestScore, attempts, xpEarned);
+
+    loadWeeklyGoal(currentProgress.userId).then((goal) => {
+      updateWeeklyProgress(
+        currentProgress.userId!,
+        goal.xpEarned + xpEarned,
+        goal.topicsCompleted + 1
+      );
+    });
   }
 
   window.dispatchEvent(new Event("progress-update"));
@@ -110,6 +143,7 @@ export async function loadCloudProgress(userId: string) {
       score: ct.score,
       bestScore: ct.best_score,
       attempts: ct.attempts,
+      completedAt: ct.completedAt,
     };
   }
 
@@ -133,7 +167,24 @@ export function recordWordAttempt(
   };
 
   currentProgress.lastActivity = new Date().toISOString();
+
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("sfi_progress", JSON.stringify(currentProgress)); } catch { }
+  }
+
   window.dispatchEvent(new Event("progress-update"));
   return currentProgress;
 }
 
+export function saveProgress(data: Partial<ProgressData>) {
+  currentProgress = { ...currentProgress, ...data };
+
+  // Persist to localStorage for guest users
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("sfi_progress", JSON.stringify(currentProgress));
+    } catch { }
+  }
+
+  window.dispatchEvent(new Event("progress-update"));
+}

@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { addXP, incrementStreak } from "@/lib/progress";
 import type { Metadata } from "next";
+import { speak } from "@/lib/tts";
 
 interface SentenceChallenge {
   english: string;
@@ -276,13 +277,6 @@ export default function SentenceBuilderPage() {
     setPlacedWords([]);
     setAnswered(false);
     setIsCorrect(false);
-  }
-
-  function speak(text: string) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "sv-SE";
-    utterance.rate = 0.8;
-    speechSynthesis.speak(utterance);
   }
 
   const current = challenges[currentIdx];

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { speak } from "@/lib/tts";
 
 // ─── STORY DATA ──────────────────────────────────────────────────────────────
 interface StoryWord {
@@ -330,14 +331,6 @@ export default function MiniStoriesPage() {
 
   function toggleTranslation(idx: number) {
     setShowTranslation(prev => prev.map((v, i) => i === idx ? !v : v));
-  }
-
-  function speak(text: string) {
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "sv-SE";
-    utterance.rate = 0.82;
-    speechSynthesis.speak(utterance);
   }
 
   function handleQuizAnswer(qIdx: number, aIdx: number) {

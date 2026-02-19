@@ -8,6 +8,8 @@ import { getUser } from "@/lib/auth";
 import { getProgress, ProgressData } from "@/lib/progress";
 import { getUserStats } from "@/lib/sync";
 import { allBadges, getUnlockedBadges, getLockedBadges, Badge } from "@/lib/badges";
+import { LoadingState } from "@/components/LoadingSystem";
+
 import {
   loadWeeklyGoal,
   saveWeeklyGoal,
@@ -70,23 +72,25 @@ export default function ProfilePage() {
 
   useEffect(() => {
     loadData();
-    const handler = () => setProgress(getProgress());
+    const handler = () => {
+      setProgress(getProgress());
+      if (userId) {
+        loadWeeklyGoal(userId).then(setWeeklyGoal);
+      }
+    };
     window.addEventListener("progress-update", handler);
     return () => window.removeEventListener("progress-update", handler);
   }, [loadData]);
 
   if (loading || !progress) {
     return (
-      <>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--warm)" }}>
         <Header />
-        <div
-          className="text-center py-20"
-          style={{ color: "var(--text-light)" }}
-        >
-          Laddar profil...
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <LoadingState type="data" message="Hämtar din profil..." />
         </div>
         <Footer />
-      </>
+      </div>
     );
   }
 
@@ -126,25 +130,25 @@ export default function ProfilePage() {
   const wordAccuracy =
     wordsKnown > 0
       ? Math.round(
-          (Object.values(progress.wordHistory).reduce(
-            (s, w) => s + w.correct,
+        (Object.values(progress.wordHistory).reduce(
+          (s, w) => s + w.correct,
+          0
+        ) /
+          Object.values(progress.wordHistory).reduce(
+            (s, w) => s + w.correct + w.wrong,
             0
-          ) /
-            Object.values(progress.wordHistory).reduce(
-              (s, w) => s + w.correct + w.wrong,
-              0
-            )) *
-            100
-        )
+          )) *
+        100
+      )
       : 0;
 
   const allTopicScores = Object.values(progress.completedTopics);
   const overallAvg =
     allTopicScores.length > 0
       ? Math.round(
-          allTopicScores.reduce((s, t) => s + t.bestScore, 0) /
-            allTopicScores.length
-        )
+        allTopicScores.reduce((s, t) => s + t.bestScore, 0) /
+        allTopicScores.length
+      )
       : 0;
 
   // Streak calendar: last 28 days
@@ -351,8 +355,8 @@ export default function ProfilePage() {
                               pct === 100
                                 ? "var(--correct)"
                                 : pct > 0
-                                ? "linear-gradient(90deg, var(--blue), var(--forest))"
-                                : "transparent",
+                                  ? "linear-gradient(90deg, var(--blue), var(--forest))"
+                                  : "transparent",
                           }}
                         />
                       </div>
@@ -392,11 +396,11 @@ export default function ProfilePage() {
                         ? day.intensity === "high"
                           ? "var(--forest)"
                           : day.intensity === "medium"
-                          ? "var(--correct)"
-                          : "#a7d5b8"
+                            ? "var(--correct)"
+                            : "#a7d5b8"
                         : day.future
-                        ? "transparent"
-                        : "var(--warm-dark)",
+                          ? "transparent"
+                          : "var(--warm-dark)",
                       color: day.active ? "white" : "transparent",
                       border: day.isToday ? "2px solid var(--blue)" : "none",
                       opacity: day.future ? 0.3 : 1,
@@ -825,8 +829,10 @@ function generateStreakCalendar(progress: ProgressData): StreakDay[] {
     // Count XP earned per topic as activity indicator
     const xpForTopic = data.bestScore > 0 ? Math.ceil(data.bestScore / 20) : 1;
     // Use today's date as fallback since we don't store per-topic dates in memory
-    const dateKey = new Date().toISOString().split("T")[0];
-    activityDates.set(dateKey, (activityDates.get(dateKey) || 0) + xpForTopic);
+    const dateKey = data.completedAt
+      ? data.completedAt.split("T")[0]
+      : new Date().toISOString().split("T")[0];
+    activityDates.set(dateKey, (activityDates.get(dateKey) || 0) + Math.ceil(data.bestScore / 20));
   }
 
   // Also check word history

@@ -8,6 +8,7 @@ import { courseData } from "@/data";
 import { addXP, incrementStreak, getProgress } from "@/lib/progress";
 import { VocabWord } from "@/data/types";
 import type { Metadata } from "next";
+import { speak } from "@/lib/tts";
 
 type Difficulty = "easy" | "medium" | "hard";
 type ChallengeType = "word-pick" | "phrase-pick" | "type-word" | "type-phrase";
@@ -172,14 +173,6 @@ export default function ListeningPage() {
     [getAllVocab, getPhrases]
   );
 
-  function speak(text: string, rate: number = 0.8) {
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "sv-SE";
-    utterance.rate = rate;
-    speechSynthesis.speak(utterance);
-    setPlayCount((c) => c + 1);
-  }
 
   function handlePickAnswer(idx: number) {
     if (answered) return;
@@ -500,8 +493,7 @@ export default function ListeningPage() {
           <button
             onClick={() =>
               speak(
-                current.audioText,
-                current.type.includes("phrase") ? 0.7 : 0.8
+                current.audioText
               )
             }
             className="w-24 h-24 rounded-full text-4xl cursor-pointer border-none transition-transform hover:scale-105 active:scale-95"
@@ -529,7 +521,7 @@ export default function ListeningPage() {
           </p>
           {/* Slow replay button */}
           <button
-            onClick={() => speak(current.audioText, 0.5)}
+            onClick={() => speak(current.audioText, { rate: 0.5 })}
             className="mt-2 px-4 py-1.5 rounded-full text-xs cursor-pointer border-none"
             style={{
               background: "var(--warm)",
@@ -657,7 +649,7 @@ export default function ListeningPage() {
                   style={{ background: "var(--warm)" }}
                 >
                   <button
-                    onClick={() => speak(current.audioText, 0.6)}
+                    onClick={() => speak(current.audioText, { rate: 0.6 })}
                     className="text-lg cursor-pointer border-none bg-transparent"
                   >
                     🔊

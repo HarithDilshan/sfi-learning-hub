@@ -11,6 +11,9 @@ import { courseData } from "@/data";
 import { VocabWord } from "@/data/types";
 import { notify } from "@/lib/notify";
 import type { Metadata } from "next";
+import { LoadingState } from "@/components/LoadingSystem";
+import { speak, stopSpeaking } from "@/lib/tts";
+
 
 interface ReviewCard {
   sv: string;
@@ -125,6 +128,12 @@ export default function ReviewPage() {
     loadCards();
   }, [loadCards]);
 
+  useEffect(() => {
+    if (mode === "listen" && currentCard && !loading) {
+      setTimeout(() => speak(currentCard.sv), 300); // small delay feels natural
+    }
+  }, [currentIdx, mode, loading]);
+
   const currentCard = cards[currentIdx];
 
   function handleAnswer(correct: boolean) {
@@ -159,15 +168,11 @@ export default function ReviewPage() {
 
   function nextCard() {
     if (currentIdx + 1 >= cards.length) {
-      setFinished(true);
-
-      if (finished) {
-        const pct = Math.round((sessionScore.correct / (sessionScore.correct + sessionScore.wrong)) * 100);
-        if (pct >= 80) {
-          notify.success("Repetition klar!", `Du fick ${pct}% rätt på repetitionsövningen.`, "/review");
-        }
+      const pct = Math.round((sessionScore.correct / (sessionScore.correct + sessionScore.wrong)) * 100);
+      if (pct >= 80) {
+        notify.success("Repetition klar!", `Du fick ${pct}% rätt på repetitionsövningen.`, "/review");
       }
-
+      setFinished(true);
       return;
     }
     setCurrentIdx((i) => i + 1);
@@ -175,20 +180,14 @@ export default function ReviewPage() {
     setTypedAnswer("");
     setAnswered(false);
     setIsCorrect(false);
-  }
-
-  function speak(text: string) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "sv-SE";
-    utterance.rate = 0.85;
-    speechSynthesis.speak(utterance);
+    stopSpeaking();
   }
 
   // ─── RESULTS SCREEN ───
   if (finished) {
     const total = sessionScore.correct + sessionScore.wrong;
     const pct = total > 0 ? Math.round((sessionScore.correct / total) * 100) : 0;
-    const cls = pct >= 80 ? "great" : pct >= 50 ? "ok" : "needs-work";
+
     const bgColor =
       pct >= 80
         ? "var(--correct-bg)"
@@ -294,12 +293,7 @@ export default function ReviewPage() {
         </div>
 
         {loading ? (
-          <div
-            className="text-center py-16"
-            style={{ color: "var(--text-light)" }}
-          >
-            Laddar ord att repetera...
-          </div>
+          <LoadingState type="data" message="Laddar ord att repetera..." />
         ) : cards.length === 0 ? (
           <div
             className="text-center py-16 rounded-xl"
