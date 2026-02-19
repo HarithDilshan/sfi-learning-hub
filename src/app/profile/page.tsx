@@ -7,7 +7,8 @@ import Footer from "@/components/Footer";
 import { getUser } from "@/lib/auth";
 import { getProgress, ProgressData } from "@/lib/progress";
 import { getUserStats } from "@/lib/sync";
-import { allBadges, getUnlockedBadges, getLockedBadges, Badge } from "@/lib/badges";
+import { BadgeWithStatus } from "@/lib/badges";
+import { useBadges } from "@/hooks/useBadges";
 import { LoadingState } from "@/components/LoadingSystem";
 
 import {
@@ -46,6 +47,16 @@ export default function ProfilePage() {
   const [editingGoal, setEditingGoal] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // ── New badge system ──────────────────────────────────────────────
+  const {
+    allBadges,
+    unlockedBadges,
+    lockedBadges,
+    loading: badgesLoading,
+    refresh: refreshBadges,
+  } = useBadges(userId);
+  // ─────────────────────────────────────────────────────────────────
+
   const loadData = useCallback(async () => {
     setLoading(true);
     const user = await getUser();
@@ -82,7 +93,14 @@ export default function ProfilePage() {
     return () => window.removeEventListener("progress-update", handler);
   }, [loadData]);
 
-  if (loading || !progress) {
+  // Refresh badges when the achievements tab is opened
+  useEffect(() => {
+    if (tab === "achievements") {
+      refreshBadges();
+    }
+  }, [tab, refreshBadges]);
+
+  if (loading || badgesLoading || !progress) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--warm)" }}>
         <Header />
@@ -95,8 +113,6 @@ export default function ProfilePage() {
   }
 
   // Compute data
-  const unlockedBadges = getUnlockedBadges(progress);
-  const lockedBadges = getLockedBadges(progress);
   const meta = getLevelMeta();
 
   const courseProgress: CourseProgress[] = (["A", "B", "C", "D", "G"] as const).map(
@@ -151,7 +167,6 @@ export default function ProfilePage() {
       )
       : 0;
 
-  // Streak calendar: last 28 days
   const streakDays = generateStreakCalendar(progress);
 
   function getLevel(xp: number) {
@@ -451,7 +466,7 @@ export default function ProfilePage() {
                       style={{ background: "var(--yellow-light)" }}
                     >
                       <div className="text-3xl mb-1">{b.icon}</div>
-                      <div className="text-xs font-semibold">{b.nameSv}</div>
+                      <div className="text-xs font-semibold">{b.name_sv}</div>
                     </div>
                   ))}
                 </div>
@@ -488,7 +503,7 @@ export default function ProfilePage() {
                 <div
                   className="h-full rounded-full"
                   style={{
-                    width: `${(unlockedBadges.length / allBadges.length) * 100}%`,
+                    width: `${allBadges.length > 0 ? (unlockedBadges.length / allBadges.length) * 100 : 0}%`,
                     background: "linear-gradient(90deg, var(--yellow), var(--yellow-dark))",
                   }}
                 />
@@ -571,7 +586,6 @@ export default function ProfilePage() {
 
                   {weeklyGoal && (
                     <>
-                      {/* Encouragement */}
                       {(() => {
                         const enc = getEncouragement(weeklyGoal);
                         return (
@@ -587,7 +601,6 @@ export default function ProfilePage() {
                         );
                       })()}
 
-                      {/* XP Goal */}
                       <div className="mb-5">
                         <div className="flex justify-between text-sm mb-1.5">
                           <span className="font-medium">XP denna vecka</span>
@@ -600,7 +613,7 @@ export default function ProfilePage() {
                           style={{ background: "var(--warm-dark)" }}
                         >
                           <div
-                            className="h-full rounded-full transition-all duration-700 relative"
+                            className="h-full rounded-full transition-all duration-700"
                             style={{
                               width: `${Math.min(100, (weeklyGoal.xpEarned / weeklyGoal.xpTarget) * 100)}%`,
                               background:
@@ -612,7 +625,6 @@ export default function ProfilePage() {
                         </div>
                       </div>
 
-                      {/* Topics Goal */}
                       <div>
                         <div className="flex justify-between text-sm mb-1.5">
                           <span className="font-medium">Ämnen denna vecka</span>
@@ -639,7 +651,6 @@ export default function ProfilePage() {
                     </>
                   )}
 
-                  {/* Goal Picker */}
                   {editingGoal && (
                     <div className="mt-6 pt-6" style={{ borderTop: "1px solid var(--warm-dark)" }}>
                       <h4 className="font-semibold mb-3">Välj ditt veckomål:</h4>
@@ -656,16 +667,10 @@ export default function ProfilePage() {
                             }}
                           >
                             <div className="font-semibold text-sm">{preset.label}</div>
-                            <div
-                              className="text-xs mt-1"
-                              style={{ color: "var(--text-light)" }}
-                            >
+                            <div className="text-xs mt-1" style={{ color: "var(--text-light)" }}>
                               {preset.xp} XP · {preset.topics} ämnen per vecka
                             </div>
-                            <div
-                              className="text-xs mt-0.5 italic"
-                              style={{ color: "var(--text-light)" }}
-                            >
+                            <div className="text-xs mt-0.5 italic" style={{ color: "var(--text-light)" }}>
                               {preset.desc}
                             </div>
                           </button>
@@ -682,7 +687,6 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                {/* Goal History */}
                 {goalHistory.length > 1 && (
                   <div
                     className="rounded-xl p-6"
@@ -692,21 +696,15 @@ export default function ProfilePage() {
                     <div className="space-y-3">
                       {goalHistory.slice(1).map((g, i) => {
                         const xpPct = Math.min(100, Math.round((g.xpEarned / g.xpTarget) * 100));
-                        const topicsPct = Math.min(
-                          100,
-                          Math.round((g.topicsCompleted / g.topicsTarget) * 100)
-                        );
+                        const topicsPct = Math.min(100, Math.round((g.topicsCompleted / g.topicsTarget) * 100));
                         const achieved = xpPct >= 100 && topicsPct >= 100;
-
                         return (
                           <div
                             key={i}
                             className="flex items-center gap-4 p-3 rounded-lg"
                             style={{ background: "var(--warm)" }}
                           >
-                            <span className="text-xl flex-shrink-0">
-                              {achieved ? "✅" : "📊"}
-                            </span>
+                            <span className="text-xl flex-shrink-0">{achieved ? "✅" : "📊"}</span>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium">
                                 Vecka{" "}
@@ -715,19 +713,13 @@ export default function ProfilePage() {
                                   month: "short",
                                 })}
                               </div>
-                              <div
-                                className="text-xs"
-                                style={{ color: "var(--text-light)" }}
-                              >
-                                {g.xpEarned}/{g.xpTarget} XP ·{" "}
-                                {g.topicsCompleted}/{g.topicsTarget} ämnen
+                              <div className="text-xs" style={{ color: "var(--text-light)" }}>
+                                {g.xpEarned}/{g.xpTarget} XP · {g.topicsCompleted}/{g.topicsTarget} ämnen
                               </div>
                             </div>
                             <span
                               className="text-sm font-bold flex-shrink-0"
-                              style={{
-                                color: achieved ? "var(--correct)" : "var(--text-light)",
-                              }}
+                              style={{ color: achieved ? "var(--correct)" : "var(--text-light)" }}
                             >
                               {xpPct}%
                             </span>
@@ -748,7 +740,7 @@ export default function ProfilePage() {
 }
 
 // ─── BADGE CARD COMPONENT ───
-function BadgeCard({ badge, unlocked }: { badge: Badge; unlocked: boolean }) {
+function BadgeCard({ badge, unlocked }: { badge: BadgeWithStatus; unlocked: boolean }) {
   const categoryColors: Record<string, string> = {
     beginner: "var(--forest-light)",
     progress: "var(--blue-light)",
@@ -766,16 +758,28 @@ function BadgeCard({ badge, unlocked }: { badge: Badge; unlocked: boolean }) {
         border: unlocked ? "1px solid rgba(0,0,0,0.06)" : "1px dashed var(--warm-dark)",
       }}
     >
-      <div
-        className="text-3xl mb-2"
-        style={{ filter: unlocked ? "none" : "grayscale(1)" }}
-      >
+      <div className="text-3xl mb-2" style={{ filter: unlocked ? "none" : "grayscale(1)" }}>
         {badge.icon}
       </div>
-      <div className="text-xs font-semibold mb-0.5">{badge.nameSv}</div>
+      <div className="text-xs font-semibold mb-0.5">{badge.name_sv}</div>
       <div className="text-xs" style={{ color: "var(--text-light)", lineHeight: 1.3 }}>
         {badge.description}
       </div>
+      {/* Progress bar for locked badges */}
+      {!unlocked && badge.progressPct > 0 && (
+        <div
+          className="w-full h-1.5 rounded-full overflow-hidden mt-2"
+          style={{ background: "var(--warm-dark)" }}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${badge.progressPct}%`,
+              background: "var(--blue)",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -793,9 +797,7 @@ function getLevelProgress(xp: number): number {
   const levels = [0, 100, 500, 1000, 2000, 5000];
   for (let i = 1; i < levels.length; i++) {
     if (xp < levels[i]) {
-      const prev = levels[i - 1];
-      const next = levels[i];
-      return ((xp - prev) / (next - prev)) * 100;
+      return ((xp - levels[i - 1]) / (levels[i] - levels[i - 1])) * 100;
     }
   }
   return 100;
@@ -814,28 +816,19 @@ function generateStreakCalendar(progress: ProgressData): StreakDay[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Find the Monday 4 weeks ago
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - 27);
-  // Adjust to Monday
   const dayOfWeek = startDate.getDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   startDate.setDate(startDate.getDate() + mondayOffset);
 
-  // Collect all activity dates from completedTopics
   const activityDates = new Map<string, number>();
-  for (const [topicId, data] of Object.entries(progress.completedTopics)) {
-    // We track activity based on existing data
-    // Count XP earned per topic as activity indicator
-    const xpForTopic = data.bestScore > 0 ? Math.ceil(data.bestScore / 20) : 1;
-    // Use today's date as fallback since we don't store per-topic dates in memory
+  for (const [, data] of Object.entries(progress.completedTopics)) {
     const dateKey = data.completedAt
       ? data.completedAt.split("T")[0]
       : new Date().toISOString().split("T")[0];
     activityDates.set(dateKey, (activityDates.get(dateKey) || 0) + Math.ceil(data.bestScore / 20));
   }
-
-  // Also check word history
   for (const [, wordData] of Object.entries(progress.wordHistory)) {
     if (wordData.lastSeen) {
       const dateKey = wordData.lastSeen.split("T")[0];
@@ -843,7 +836,6 @@ function generateStreakCalendar(progress: ProgressData): StreakDay[] {
     }
   }
 
-  // Generate 28 days (4 weeks)
   for (let i = 0; i < 28; i++) {
     const date = new Date(startDate);
     date.setDate(startDate.getDate() + i);
@@ -856,13 +848,7 @@ function generateStreakCalendar(progress: ProgressData): StreakDay[] {
     if (activity >= 5) intensity = "high";
     else if (activity >= 2) intensity = "medium";
 
-    days.push({
-      date: dateStr,
-      active: activity > 0,
-      intensity,
-      isToday,
-      future: isFuture,
-    });
+    days.push({ date: dateStr, active: activity > 0, intensity, isToday, future: isFuture });
   }
 
   return days;

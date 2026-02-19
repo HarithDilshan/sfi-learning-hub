@@ -10,7 +10,8 @@
  */
 import { useEffect, useRef } from "react";
 import { getProgress } from "@/lib/progress";
-import { getUnlockedBadges } from "@/lib/badges";
+import { BadgeWithStatus } from "@/lib/badges";
+
 async function showNotification(
   title: string,
   body: string,
@@ -28,64 +29,82 @@ async function showNotification(
       tag: options?.tag ?? "in-app",
       silent: true,
       data: { url: options?.url ?? "/" },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
   } catch {
     // Never crash the app for a notification
   }
 }
+
 const XP_MILESTONES = [50, 100, 250, 500, 1000, 2000, 5000];
+
 type Snapshot = {
   xp: number;
   streak: number;
   topicCount: number;
   badgeIds: Set<string>;
 };
-function takeSnapshot(): Snapshot {
+
+function takeSnapshot(unlockedBadges: BadgeWithStatus[]): Snapshot {
   const p = getProgress();
   return {
     xp: p.xp,
     streak: p.streak,
     topicCount: Object.keys(p.completedTopics).length,
-    badgeIds: new Set(getUnlockedBadges(p).map((b) => b.id)),
+    badgeIds: new Set(unlockedBadges.map((b) => b.id)),
   };
 }
-export function useInAppNotifications() {
+
+interface UseInAppNotificationsOptions {
+  /** Pass unlockedBadges from useBadges() hook */
+  unlockedBadges: BadgeWithStatus[];
+}
+
+export function useInAppNotifications({ unlockedBadges }: UseInAppNotificationsOptions) {
   const prevRef = useRef<Snapshot | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readyRef = useRef(false);
+
+  // Keep a ref to unlockedBadges so the event handler always sees latest value
+  const unlockedBadgesRef = useRef(unlockedBadges);
+  useEffect(() => {
+    unlockedBadgesRef.current = unlockedBadges;
+  }, [unlockedBadges]);
+
   useEffect(() => {
     // Delay 2s so all page-load progress-update events settle before
     // we start watching. Without this, every stored value looks like
     // a "new" change and fires ~30 notifications on startup.
     const initTimer = setTimeout(() => {
-      prevRef.current = takeSnapshot();
+      prevRef.current = takeSnapshot(unlockedBadgesRef.current);
       readyRef.current = true;
     }, 2000);
+
     async function handleProgressUpdate() {
-      // Ignore events during the initial 2s settle window
       if (!readyRef.current || !prevRef.current) return;
-      // Debounce: if multiple events fire in quick succession (e.g. XP +
-      // streak + topic all at once), only run the check once after 300ms
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => runCheck(), 300);
     }
+
     async function runCheck() {
       const prev = prevRef.current;
       if (!prev) return;
+
       const current = getProgress();
-      const now = takeSnapshot();
+      const now = takeSnapshot(unlockedBadgesRef.current);
+
       // ── 1. New badge unlocked ──────────────────────────────────────
-      const newBadges = getUnlockedBadges(current).filter(
+      const newBadges = unlockedBadgesRef.current.filter(
         (b) => !prev.badgeIds.has(b.id)
       );
       for (const badge of newBadges) {
         await showNotification(
           `${badge.icon} Nytt märke upplåst!`,
-          `${badge.nameSv} — ${badge.description}`,
+          `${badge.name_sv} — ${badge.description}`,
           { tag: `badge-${badge.id}`, url: "/profile" }
         );
       }
+
       // ── 2. Streak incremented ──────────────────────────────────────
       if (now.streak > prev.streak) {
         const s = now.streak;
@@ -98,6 +117,7 @@ export function useInAppNotifications() {
           { tag: "streak", url: "/daily" }
         );
       }
+
       // ── 3. XP milestone crossed ────────────────────────────────────
       const crossedMilestone = XP_MILESTONES.find(
         (m) => prev.xp < m && now.xp >= m
@@ -109,6 +129,7 @@ export function useInAppNotifications() {
           { tag: "xp-milestone", url: "/profile" }
         );
       }
+
       // ── 4. Quiz / topic completed (80%+) ──────────────────────────
       if (now.topicCount > prev.topicCount) {
         const latestKey = Object.keys(current.completedTopics).at(-1) ?? "";
@@ -130,9 +151,11 @@ export function useInAppNotifications() {
           }
         }
       }
+
       // Save new snapshot as baseline for next event
       prevRef.current = now;
     }
+
     window.addEventListener("progress-update", handleProgressUpdate);
     return () => {
       clearTimeout(initTimer);

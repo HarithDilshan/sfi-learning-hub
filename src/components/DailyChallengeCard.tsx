@@ -3,11 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { getProgress } from "@/lib/progress";
-import { courseData } from "@/data";
-import { VocabWord } from "@/data/types";
 import { speak } from "@/lib/tts";
+import { supabase } from "@/lib/supabase";
 
-// Same seeded random as daily challenge page
 function seededRandom(seed: string) {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -30,9 +28,46 @@ function seededShuffle<T>(arr: T[], rng: () => number): T[] {
   return shuffled;
 }
 
+interface VocabWord {
+  sv: string;
+  en: string;
+  pron: string;
+}
+
+async function fetchVocabForCard(): Promise<VocabWord[]> {
+  // Try vocabulary table first
+  const { data, error } = await supabase
+    .from("vocabulary")
+    .select("swedish, english, pronunciation");
+
+  if (!error && data?.length) {
+    return data.map((row) => ({
+      sv: row.swedish,
+      en: row.english,
+      pron: row.pronunciation ?? "",
+    }));
+  }
+
+  // Fall back to story highlight_words
+  const { data: paraData } = await supabase
+    .from("story_paragraphs")
+    .select("highlight_words");
+
+  const vocab: VocabWord[] = [];
+  for (const row of paraData ?? []) {
+    const words = Array.isArray(row.highlight_words) ? row.highlight_words : [];
+    for (const w of words) {
+      vocab.push({ sv: w.word, en: w.translation, pron: "" });
+    }
+  }
+  return vocab;
+}
+
 export default function DailyChallengeCard() {
   const [completed, setCompleted] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted]     = useState(false);
+  const [vocab, setVocab]         = useState<VocabWord[]>([]);
+
   const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
@@ -41,24 +76,16 @@ export default function DailyChallengeCard() {
     if (progress.completedTopics[`daily-${today}`]) {
       setCompleted(true);
     }
+    // Fetch vocab from Supabase — same source as the daily page
+    fetchVocabForCard().then(setVocab);
   }, [today]);
 
-  // Get word of the day (same seed as the daily challenge page)
-  const wordOfDay = useMemo(() => {
+  // Pick word of the day using same seed as DailyChallengePage
+  const wordOfDay = useMemo((): VocabWord | null => {
+    if (vocab.length === 0) return null;
     const rng = seededRandom(today);
-    const allVocab: VocabWord[] = [];
-    for (const levelKey of Object.keys(courseData)) {
-      const level = courseData[levelKey as keyof typeof courseData];
-      if (level?.topics) {
-        for (const topic of level.topics) {
-          for (const word of topic.vocab) {
-            allVocab.push(word);
-          }
-        }
-      }
-    }
-    return seededShuffle(allVocab, rng)[0];
-  }, [today]);
+    return seededShuffle(vocab, rng)[0];
+  }, [vocab, today]);
 
   if (!mounted) return null;
 
@@ -96,28 +123,29 @@ export default function DailyChallengeCard() {
         </div>
 
         {/* Word of the day preview */}
-        <div
-          className="rounded-lg p-4 mb-4"
-          style={{ background: "rgba(255,255,255,0.1)" }}
-        >
-          <p className="text-xs uppercase tracking-wide opacity-60 mb-1">
-            Dagens ord
-          </p>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-xl font-bold">{wordOfDay?.sv}</span>
-              <span className="text-sm opacity-70 ml-2">
-                — {wordOfDay?.en}
-              </span>
+        <div className="rounded-lg p-4 mb-4" style={{ background: "rgba(255,255,255,0.1)" }}>
+          <p className="text-xs uppercase tracking-wide opacity-60 mb-1">Dagens ord</p>
+          {wordOfDay ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xl font-bold">{wordOfDay.sv}</span>
+                <span className="text-sm opacity-70 ml-2">— {wordOfDay.en}</span>
+              </div>
+              <button
+                onClick={() => speak(wordOfDay.sv)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm cursor-pointer border-none"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+              >
+                🔊
+              </button>
             </div>
-            <button
-              onClick={() => {speak(wordOfDay?.sv);}}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-sm cursor-pointer border-none"
-              style={{ background: "rgba(255,255,255,0.2)" }}
-            >
-              🔊
-            </button>
-          </div>
+          ) : (
+            // Skeleton while loading
+            <div className="flex items-center gap-3 animate-pulse">
+              <div className="h-6 w-24 rounded" style={{ background: "rgba(255,255,255,0.2)" }} />
+              <div className="h-4 w-32 rounded" style={{ background: "rgba(255,255,255,0.15)" }} />
+            </div>
+          )}
         </div>
 
         <Link

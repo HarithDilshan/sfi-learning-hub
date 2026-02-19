@@ -9,6 +9,7 @@ export interface ProgressData {
   completedTopics: Record<string, { score: number; bestScore: number; attempts: number,completedAt: string; }>;
   wordHistory: Record<string, { correct: number; wrong: number; lastSeen: string }>;
   lastActivity: string;
+  lastStudyHour?: number; 
   userId: string | null;
 }
 
@@ -105,6 +106,7 @@ export function markTopicComplete(
   currentProgress.completedTopics[topicId] = { score: pct, bestScore, attempts,completedAt: existing?.completedAt || new Date().toISOString(), };
   currentProgress.xp += xpEarned;
   currentProgress.lastActivity = new Date().toISOString();
+  currentProgress.lastStudyHour = new Date().getHours(); 
 
   if (typeof window !== "undefined") {
     try { localStorage.setItem("sfi_progress", JSON.stringify(currentProgress)); } catch { }

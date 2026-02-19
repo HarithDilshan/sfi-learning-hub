@@ -2,331 +2,278 @@
 
 import { ProgressData } from "./progress";
 
-export interface Badge {
+// ════════════════════════════════════════════════════
+// TYPES
+// Badge metadata comes from Supabase (badges table).
+// Only the check/progress logic lives here in code.
+// ════════════════════════════════════════════════════
+
+export interface BadgeMetadata {
   id: string;
   icon: string;
   name: string;
-  nameSv: string;
+  name_sv: string;
   description: string;
   category: "beginner" | "progress" | "mastery" | "streak" | "special";
-  check: (progress: ProgressData) => boolean;
+  sort_order: number;
 }
 
-export const allBadges: Badge[] = [
+export interface BadgeWithStatus extends BadgeMetadata {
+  unlocked: boolean;
+  unlockedAt?: string;
+  progressPct: number; // 0–100, for locked badges
+}
+
+// ════════════════════════════════════════════════════
+// LOGIC REGISTRY
+// Keyed by badge id. Add a new badge to Supabase?
+// Just add its check/progress functions here too.
+// ════════════════════════════════════════════════════
+
+interface BadgeLogic {
+  check: (p: ProgressData, topicMap: Record<string, string[]>) => boolean;
+  progress: (p: ProgressData, topicMap: Record<string, string[]>) => number;
+}
+
+export const badgeLogic: Record<string, BadgeLogic> = {
   // ─── BEGINNER ───
-  {
-    id: "first-quiz",
-    icon: "🎯",
-    name: "First Quiz",
-    nameSv: "Första övningen",
-    description: "Complete your first exercise",
-    category: "beginner",
+  "first-quiz": {
     check: (p) => Object.keys(p.completedTopics).length >= 1,
+    progress: (p) => Math.min(Object.keys(p.completedTopics).length / 1, 1),
   },
-  {
-    id: "first-perfect",
-    icon: "💯",
-    name: "Perfect Score",
-    nameSv: "Full pott",
-    description: "Get 100% on any exercise",
-    category: "beginner",
-    check: (p) =>
-      Object.values(p.completedTopics).some((t) => t.bestScore === 100),
+  "first-perfect": {
+    check: (p) => Object.values(p.completedTopics).some((t) => t.bestScore === 100),
+    progress: (p) => {
+      const best = Math.max(0, ...Object.values(p.completedTopics).map((t) => t.bestScore));
+      return best / 100;
+    },
   },
-  {
-    id: "word-learner",
-    icon: "📖",
-    name: "Word Learner",
-    nameSv: "Ordlärling",
-    description: "Practice 10 words in review mode",
-    category: "beginner",
+  "word-learner": {
     check: (p) => Object.keys(p.wordHistory).length >= 10,
+    progress: (p) => Math.min(Object.keys(p.wordHistory).length / 10, 1),
   },
-  {
-    id: "first-steps",
-    icon: "👶",
-    name: "First Steps",
-    nameSv: "Första stegen",
-    description: "Earn your first 50 XP",
-    category: "beginner",
+  "first-steps": {
     check: (p) => p.xp >= 50,
+    progress: (p) => Math.min(p.xp / 50, 1),
   },
 
   // ─── PROGRESS ───
-  {
-    id: "five-topics",
-    icon: "📚",
-    name: "Bookworm",
-    nameSv: "Bokmal",
-    description: "Complete 5 different topics",
-    category: "progress",
+  "five-topics": {
     check: (p) => Object.keys(p.completedTopics).length >= 5,
+    progress: (p) => Math.min(Object.keys(p.completedTopics).length / 5, 1),
   },
-  {
-    id: "ten-topics",
-    icon: "🎓",
-    name: "Dedicated Student",
-    nameSv: "Flitig elev",
-    description: "Complete 10 different topics",
-    category: "progress",
+  "ten-topics": {
     check: (p) => Object.keys(p.completedTopics).length >= 10,
+    progress: (p) => Math.min(Object.keys(p.completedTopics).length / 10, 1),
   },
-  {
-    id: "twenty-topics",
-    icon: "🏅",
-    name: "Topic Master",
-    nameSv: "Ämnesmästare",
-    description: "Complete 20 different topics",
-    category: "progress",
+  "twenty-topics": {
     check: (p) => Object.keys(p.completedTopics).length >= 20,
+    progress: (p) => Math.min(Object.keys(p.completedTopics).length / 20, 1),
   },
-  {
-    id: "xp-100",
-    icon: "⭐",
-    name: "Rising Star",
-    nameSv: "Stigande stjärna",
-    description: "Earn 100 XP total",
-    category: "progress",
+  "xp-100": {
     check: (p) => p.xp >= 100,
+    progress: (p) => Math.min(p.xp / 100, 1),
   },
-  {
-    id: "xp-500",
-    icon: "🌟",
-    name: "Shining Star",
-    nameSv: "Lysande stjärna",
-    description: "Earn 500 XP total",
-    category: "progress",
+  "xp-500": {
     check: (p) => p.xp >= 500,
+    progress: (p) => Math.min(p.xp / 500, 1),
   },
-  {
-    id: "xp-1000",
-    icon: "✨",
-    name: "Superstar",
-    nameSv: "Superstjärna",
-    description: "Earn 1000 XP total",
-    category: "progress",
+  "xp-1000": {
     check: (p) => p.xp >= 1000,
+    progress: (p) => Math.min(p.xp / 1000, 1),
   },
-  {
-    id: "xp-5000",
-    icon: "💎",
-    name: "Diamond Learner",
-    nameSv: "Diamantelev",
-    description: "Earn 5000 XP total",
-    category: "progress",
+  "xp-5000": {
     check: (p) => p.xp >= 5000,
+    progress: (p) => Math.min(p.xp / 5000, 1),
   },
 
   // ─── MASTERY ───
-  {
-    id: "kurs-a-complete",
-    icon: "🇸🇪",
-    name: "Kurs A Master",
-    nameSv: "Kurs A klar",
-    description: "Complete all Kurs A topics",
-    category: "mastery",
-    check: (p) => {
-      const aTopics = ["a1", "a2", "a3", "a4"];
-      return aTopics.every((id) => p.completedTopics[id]);
+ "kurs-a-complete": {
+  check: (p, tm) => {
+    const topics = tm["A"] ?? [];
+    return topics.length > 0 && topics.every((id) => p.completedTopics[id]);
+  },
+  progress: (p, tm) => {
+    const topics = tm["A"] ?? [];
+    if (topics.length === 0) return 0;
+    return topics.filter((id) => p.completedTopics[id]).length / topics.length;
+  },
+},
+  "kurs-b-complete": {
+    check: (p, tm) => {
+      const topics = tm["B"] ?? [];
+      return topics.length > 0 && topics.every((id) => p.completedTopics[id]);
+    },
+    progress: (p, tm) => {
+      const topics = tm["B"] ?? [];
+      if (topics.length === 0) return 0;
+      return topics.filter((id) => p.completedTopics[id]).length / topics.length;
     },
   },
-  {
-    id: "kurs-b-complete",
-    icon: "🏔️",
-    name: "Kurs B Master",
-    nameSv: "Kurs B klar",
-    description: "Complete all Kurs B topics",
-    category: "mastery",
-    check: (p) => {
-      const bTopics = ["b1", "b2", "b3"];
-      return bTopics.every((id) => p.completedTopics[id]);
+  "kurs-c-complete": {
+    check: (p, tm) => {
+      const topics = tm["C"] ?? [];
+      return topics.length > 0 && topics.every((id) => p.completedTopics[id]);
+    },
+    progress: (p, tm) => {
+      const topics = tm["C"] ?? [];
+      if (topics.length === 0) return 0;
+      return topics.filter((id) => p.completedTopics[id]).length / topics.length;
     },
   },
-  {
-    id: "kurs-c-complete",
-    icon: "🏆",
-    name: "Kurs C Master",
-    nameSv: "Kurs C klar",
-    description: "Complete all Kurs C topics",
-    category: "mastery",
-    check: (p) => {
-      const cTopics = ["c1", "c2", "c3"];
-      return cTopics.every((id) => p.completedTopics[id]);
+  "kurs-d-complete": {
+    check: (p, tm) => {
+      const topics = tm["D"] ?? [];
+      return topics.length > 0 && topics.every((id) => p.completedTopics[id]);
+    },
+    progress: (p, tm) => {
+      const topics = tm["D"] ?? [];
+      if (topics.length === 0) return 0;
+      return topics.filter((id) => p.completedTopics[id]).length / topics.length;
     },
   },
-  {
-    id: "kurs-d-complete",
-    icon: "👑",
-    name: "Kurs D Master",
-    nameSv: "Kurs D klar",
-    description: "Complete all Kurs D topics",
-    category: "mastery",
-    check: (p) => {
-      const dTopics = ["d1", "d2", "d3"];
-      return dTopics.every((id) => p.completedTopics[id]);
-    },
+"all-courses": {
+  check: (p, tm) => {
+    const topics = tm["all"] ?? [];
+    return topics.length > 0 && topics.every((id) => p.completedTopics[id]);
   },
-  {
-    id: "all-courses",
-    icon: "🎖️",
-    name: "SFI Graduate",
-    nameSv: "SFI-examen",
-    description: "Complete all courses A through D",
-    category: "mastery",
-    check: (p) => {
-      const allTopics = ["a1", "a2", "a3", "a4", "b1", "b2", "b3", "c1", "c2", "c3", "d1", "d2", "d3"];
-      return allTopics.every((id) => p.completedTopics[id]);
-    },
+  progress: (p, tm) => {
+    const topics = tm["all"] ?? [];
+    if (topics.length === 0) return 0;
+    return topics.filter((id) => p.completedTopics[id]).length / topics.length;
   },
-  {
-    id: "vocab-50",
-    icon: "📝",
-    name: "Vocabulary Builder",
-    nameSv: "Ordbyggare",
-    description: "Practice 50 different words",
-    category: "mastery",
+},
+  "vocab-50": {
     check: (p) => Object.keys(p.wordHistory).length >= 50,
+    progress: (p) => Math.min(Object.keys(p.wordHistory).length / 50, 1),
   },
-  {
-    id: "vocab-100",
-    icon: "📕",
-    name: "Word Collector",
-    nameSv: "Ordsamlare",
-    description: "Practice 100 different words",
-    category: "mastery",
+  "vocab-100": {
     check: (p) => Object.keys(p.wordHistory).length >= 100,
+    progress: (p) => Math.min(Object.keys(p.wordHistory).length / 100, 1),
   },
-  {
-    id: "accuracy-90",
-    icon: "🎯",
-    name: "Sharpshooter",
-    nameSv: "Prickskytt",
-    description: "Average best score above 90% across 5+ topics",
-    category: "mastery",
+  "accuracy-90": {
     check: (p) => {
       const topics = Object.values(p.completedTopics);
       if (topics.length < 5) return false;
-      const avg =
-        topics.reduce((s, t) => s + t.bestScore, 0) / topics.length;
-      return avg >= 90;
+      return topics.reduce((s, t) => s + t.bestScore, 0) / topics.length >= 90;
+    },
+    progress: (p) => {
+      const topics = Object.values(p.completedTopics);
+      if (topics.length === 0) return 0;
+      const topicPct = Math.min(topics.length / 5, 1) * 0.5;
+      const avgPct = (topics.reduce((s, t) => s + t.bestScore, 0) / topics.length / 90) * 0.5;
+      return Math.min(topicPct + avgPct, 1);
     },
   },
 
   // ─── STREAK ───
-  {
-    id: "streak-3",
-    icon: "🔥",
-    name: "On Fire",
-    nameSv: "Brinner!",
-    description: "Reach a 3 streak",
-    category: "streak",
-    check: (p) => p.streak >= 3,
-  },
-  {
-    id: "streak-7",
-    icon: "🔥",
-    name: "Week Warrior",
-    nameSv: "Veckokämpe",
-    description: "Reach a 7 streak",
-    category: "streak",
-    check: (p) => p.streak >= 7,
-  },
-  {
-    id: "streak-14",
-    icon: "🔥",
-    name: "Fortnight Fighter",
-    nameSv: "Tvåveckors kämpe",
-    description: "Reach a 14 streak",
-    category: "streak",
-    check: (p) => p.streak >= 14,
-  },
-  {
-    id: "streak-30",
-    icon: "🔥",
-    name: "Monthly Master",
-    nameSv: "Månadsmästare",
-    description: "Reach a 30 streak",
-    category: "streak",
-    check: (p) => p.streak >= 30,
-  },
+  "streak-3":  { check: (p) => p.streak >= 3,  progress: (p) => Math.min(p.streak / 3,  1) },
+  "streak-7":  { check: (p) => p.streak >= 7,  progress: (p) => Math.min(p.streak / 7,  1) },
+  "streak-14": { check: (p) => p.streak >= 14, progress: (p) => Math.min(p.streak / 14, 1) },
+  "streak-30": { check: (p) => p.streak >= 30, progress: (p) => Math.min(p.streak / 30, 1) },
 
   // ─── SPECIAL ───
-  {
-    id: "daily-champion",
-    icon: "📅",
-    name: "Daily Champion",
-    nameSv: "Dagsutmanare",
-    description: "Complete 5 daily challenges",
-    category: "special",
-    check: (p) => {
-      const dailyCount = Object.keys(p.completedTopics).filter((k) =>
-        k.startsWith("daily-")
-      ).length;
-      return dailyCount >= 5;
-    },
+  "daily-champion": {
+    check: (p) => Object.keys(p.completedTopics).filter((k) => k.startsWith("daily-")).length >= 5,
+    progress: (p) => Math.min(Object.keys(p.completedTopics).filter((k) => k.startsWith("daily-")).length / 5, 1),
   },
-  {
-    id: "daily-legend",
-    icon: "🌟",
-    name: "Daily Legend",
-    nameSv: "Dagslegend",
-    description: "Complete 30 daily challenges",
-    category: "special",
-    check: (p) => {
-      const dailyCount = Object.keys(p.completedTopics).filter((k) =>
-        k.startsWith("daily-")
-      ).length;
-      return dailyCount >= 30;
-    },
+  "daily-legend": {
+    check: (p) => Object.keys(p.completedTopics).filter((k) => k.startsWith("daily-")).length >= 30,
+    progress: (p) => Math.min(Object.keys(p.completedTopics).filter((k) => k.startsWith("daily-")).length / 30, 1),
   },
-  {
-    id: "night-owl",
-    icon: "🦉",
-    name: "Night Owl",
-    nameSv: "Nattuggla",
-    description: "Study after 11 PM",
-    category: "special",
+  "night-owl": {
     check: (p) => {
-      const hour = new Date(p.lastActivity).getHours();
+      const hour = p.lastStudyHour ?? new Date(p.lastActivity).getHours();
       return hour >= 23 || hour < 4;
     },
+    progress: () => 0, // binary — either you did or you didn't
   },
-  {
-    id: "early-bird",
-    icon: "🐦",
-    name: "Early Bird",
-    nameSv: "Morgonfågel",
-    description: "Study before 7 AM",
-    category: "special",
+  "early-bird": {
     check: (p) => {
-      const hour = new Date(p.lastActivity).getHours();
+      const hour = p.lastStudyHour ?? new Date(p.lastActivity).getHours();
       return hour >= 4 && hour < 7;
     },
+    progress: () => 0,
   },
-];
+};
 
-export function getUnlockedBadges(progress: ProgressData): Badge[] {
-  return allBadges.filter((b) => b.check(progress));
+// ════════════════════════════════════════════════════
+// HELPERS — used by useBadges hook and badge UI
+// ════════════════════════════════════════════════════
+
+/** Run all badge checks against current progress. Returns ids that pass. */
+export function evaluateBadges(
+  allBadges: BadgeMetadata[],
+  progress: ProgressData,
+  topicMap: Record<string, string[]>
+): string[] {
+  return allBadges
+    .filter(({ id }) => {
+      const logic = badgeLogic[id];
+      return logic ? logic.check(progress, topicMap) : false;
+    })
+    .map((b) => b.id);
 }
 
-export function getLockedBadges(progress: ProgressData): Badge[] {
-  return allBadges.filter((b) => !b.check(progress));
+export function getBadgeProgress(
+  id: string,
+  progress: ProgressData,
+  topicMap: Record<string, string[]>
+): number {
+  const logic = badgeLogic[id];
+  if (!logic) return 0;
+  return Math.round(logic.progress(progress, topicMap) * 100);
 }
 
-export function getNextBadges(progress: ProgressData, count: number = 3): Badge[] {
-  // Return locked badges that are closest to being unlocked
-  const locked = getLockedBadges(progress);
-  
-  // Simple priority: beginner first, then progress, then others
-  const priority: Record<string, number> = {
-    beginner: 0,
-    progress: 1,
-    streak: 2,
-    mastery: 3,
-    special: 4,
-  };
+/** Merge badge metadata from Supabase with unlock status. */
+export function mergeBadgeStatus(
+  metadata: BadgeMetadata[],
+  unlockedIds: Set<string>,
+  unlockedAt: Record<string, string>,
+  progress: ProgressData,
+  topicMap: Record<string, string[]>
+): BadgeWithStatus[] {
+  return metadata
+    .map((badge) => ({
+      ...badge,
+      unlocked: unlockedIds.has(badge.id),
+      unlockedAt: unlockedAt[badge.id],
+      progressPct: unlockedIds.has(badge.id) ? 100 : getBadgeProgress(badge.id, progress, topicMap),
+    }))
+    .sort((a, b) => a.sort_order - b.sort_order);
+}
 
-  return locked
-    .sort((a, b) => (priority[a.category] || 5) - (priority[b.category] || 5))
+export function getNextBadges(
+  metadata: BadgeMetadata[],
+  unlockedIds: Set<string>,
+  progress: ProgressData,
+  topicMap: Record<string, string[]>,
+  count = 3
+): BadgeWithStatus[] {
+  return metadata
+    .filter((b) => !unlockedIds.has(b.id))
+    .map((b) => ({
+      ...b,
+      unlocked: false,
+      progressPct: getBadgeProgress(b.id, progress, topicMap),
+    }))
+    .sort((a, b) => b.progressPct - a.progressPct)
     .slice(0, count);
+}
+
+/** Get all badges that a user has unlocked, with full status. */
+export function getUnlockedBadges(
+  metadata: BadgeMetadata[],
+  unlockedIds: Set<string>,
+  unlockedAt: Record<string, string>
+): BadgeWithStatus[] {
+  return metadata
+    .filter((b) => unlockedIds.has(b.id))
+    .map((b) => ({
+      ...b,
+      unlocked: true,
+      unlockedAt: unlockedAt[b.id],
+      progressPct: 100,
+    }))
+    .sort((a, b) => a.sort_order - b.sort_order);
 }

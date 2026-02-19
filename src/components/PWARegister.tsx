@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useInAppNotifications } from "@/hooks/useInAppNotifications";
-
+import { useBadges } from "@/hooks/useBadges";
+import { getUser } from "@/lib/auth";
 
 export default function PWARegister() {
-   // Fire local notifications on quiz completion, XP milestones, etc.
-  useInAppNotifications();
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getUser().then((user) => setUserId(user?.id ?? null));
+  }, []);
+
+  const { unlockedBadges } = useBadges(userId);
+
+  // Fire local notifications on quiz completion, XP milestones, etc.
+  useInAppNotifications({ unlockedBadges });
+
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
