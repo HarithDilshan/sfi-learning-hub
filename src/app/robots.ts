@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 
 // 👇 Change this to your actual Vercel URL or custom domain
-const BASE_URL = "https://sfi-learning-hub.vercel.app";
+const BASE_URL = "https://www.sfihub.se";
 
 export default function robots(): MetadataRoute.Robots {
   return {

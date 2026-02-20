@@ -24,7 +24,7 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const BASE_URL = "https://sfi-learning-hub.vercel.app";
+const BASE_URL = "https://www.sfihub.se";
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -132,7 +132,7 @@ export const metadata: Metadata = {
   },
 
   verification: {
-    google: "4RUGrvDxFFU-ZmxSDX8R4WHEpBSqPgiZQsoOyXnzucQ",
+    google: "hS67QgjhvzmdJLg6zWFgWl640_ThnujWGh0QJHAR-XM",
   },
 };
 
