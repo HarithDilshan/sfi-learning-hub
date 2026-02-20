@@ -55,11 +55,11 @@ async function getQuizFeedback(
 ): Promise<QuizFeedback> {
   try {
     const isCorrect = chosenIdx === correctIdx;
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("/api/groq", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "llama-3.3-70b-versatile",
         max_tokens: 350,
         messages: [{
           role: "user",
@@ -83,7 +83,7 @@ Keep each field under 30 words. Write in English. Be encouraging.`,
       }),
     });
     const data = await res.json();
-    const text = data.content?.[0]?.text ?? "";
+    const text = data.choices?.[0]?.message?.content ?? "";
     return JSON.parse(text.replace(/```json|```/g, "").trim()) as QuizFeedback;
   } catch {
     return {
@@ -95,7 +95,11 @@ Keep each field under 30 words. Write in English. Be encouraging.`,
 
 // ─── AI STORY GENERATOR ──────────────────────────────────────────────────────
 
-interface GeneratedParagraph { swedish: string; english: string; }
+interface GeneratedParagraph {
+  swedish: string;
+  english: string;
+  highlight_words: { word: string; translation: string }[];
+}
 interface GeneratedStory {
   title:       string;
   title_en:    string;
@@ -118,11 +122,11 @@ async function generateStory(
     : "Use vocabulary appropriate for this level.";
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("/api/groq", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "llama-3.3-70b-versatile",
         max_tokens: 2000,
         messages: [{
           role: "user",
@@ -146,7 +150,13 @@ Respond ONLY with valid JSON, no markdown:
   "description": "<1 sentence description in English>",
   "emoji": "<one relevant emoji>",
   "paragraphs": [
-    { "swedish": "<Swedish text>", "english": "<English translation>" }
+    {
+      "swedish": "<Swedish text>",
+      "english": "<English translation>",
+      "highlight_words": [
+        { "word": "<key Swedish word or phrase from this paragraph>", "translation": "<English>" }
+      ]
+    }
   ],
   "vocab": [
     { "word": "<Swedish word>", "translation": "<English>" }
@@ -154,12 +164,13 @@ Respond ONLY with valid JSON, no markdown:
   "questions": [
     { "question": "<question in Swedish>", "options": ["<opt0>","<opt1>","<opt2>","<opt3>"], "answer": <0-3> }
   ]
-}`,
+}
+Each paragraph must have 2-4 highlight_words picking the most important vocabulary from that paragraph's Swedish text.`,
         }],
       }),
     });
     const data = await res.json();
-    const text = data.content?.[0]?.text ?? "";
+    const text = data.choices?.[0]?.message?.content ?? "";
     return JSON.parse(text.replace(/```json|```/g, "").trim()) as GeneratedStory;
   } catch (err) {
     console.error("[MiniStories] generateStory:", err);
@@ -167,7 +178,75 @@ Respond ONLY with valid JSON, no markdown:
   }
 }
 
-// ─── FLASHCARD COMPONENT ─────────────────────────────────────────────────────
+// ─── SAVE GENERATED STORY TO SUPABASE ────────────────────────────────────────
+
+async function saveGeneratedStory(
+  gs: GeneratedStory,
+  level: string
+): Promise<string | null> {
+  try {
+    // Build a slug from title: lowercase, remove accents, replace spaces with dashes
+    const slug = "ai-" + gs.title
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 50)
+      + "-" + Date.now().toString(36);
+
+    // 1. Insert story row
+    const { data: story, error: storyErr } = await supabase
+      .from("mini_stories")
+      .insert({
+        slug,
+        level,
+        title:          gs.title,
+        title_en:       gs.title_en,
+        emoji:          gs.emoji,
+        description:    gs.description,
+        estimated_time: `${gs.paragraphs.length * 1} min`,
+        vocab_focus:    gs.vocab.slice(0, 5).map(v => v.word),
+        is_ai_generated: true,
+        sort_order:     9999,
+      })
+      .select("id")
+      .single();
+
+    if (storyErr || !story) {
+      console.error("[saveGeneratedStory] story insert:", storyErr?.message);
+      return null;
+    }
+
+    // 2. Insert paragraphs
+    const paragraphRows = gs.paragraphs.map((p, i) => ({
+      story_id:        story.id,
+      sort_order:      i + 1,
+      swedish:         p.swedish,
+      english:         p.english,
+      highlight_words: p.highlight_words ?? [],
+    }));
+    const { error: paraErr } = await supabase.from("story_paragraphs").insert(paragraphRows);
+    if (paraErr) console.error("[saveGeneratedStory] paragraphs:", paraErr.message);
+
+    // 3. Insert questions
+    const questionRows = gs.questions.map((q, i) => ({
+      story_id:   story.id,
+      sort_order: i + 1,
+      question:   q.question,
+      options:    q.options,
+      answer:     q.answer,
+    }));
+    const { error: qErr } = await supabase.from("story_questions").insert(questionRows);
+    if (qErr) console.error("[saveGeneratedStory] questions:", qErr.message);
+
+    return slug;
+  } catch (err) {
+    console.error("[saveGeneratedStory] unexpected:", err);
+    return null;
+  }
+}
+
+
 
 function VocabFlashcards({ vocab }: { vocab: { word: string; translation: string }[] }) {
   const [idx, setIdx]       = useState(0);
@@ -231,6 +310,29 @@ function VocabFlashcards({ vocab }: { vocab: { word: string; translation: string
 
 // ─── AI STORY GENERATOR PANEL ─────────────────────────────────────────────────
 
+// ─── DAILY GENERATION LIMIT (localStorage) ────────────────────────────────────
+const DAILY_LIMIT = 3;
+const LIMIT_KEY   = "sfihub_gen_limit";
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10); // "2026-02-20"
+}
+
+function getGenerationsToday(): number {
+  try {
+    const raw = localStorage.getItem(LIMIT_KEY);
+    if (!raw) return 0;
+    const { date, count } = JSON.parse(raw);
+    return date === getTodayKey() ? count : 0;
+  } catch { return 0; }
+}
+
+function incrementGenerationsToday(): number {
+  const newCount = getGenerationsToday() + 1;
+  localStorage.setItem(LIMIT_KEY, JSON.stringify({ date: getTodayKey(), count: newCount }));
+  return newCount;
+}
+
 function AIStoryGenerator({ onStoryReady }: { onStoryReady: (s: GeneratedStory) => void }) {
   const [level, setLevel]         = useState("B");
   const [topic, setTopic]         = useState("");
@@ -238,17 +340,26 @@ function AIStoryGenerator({ onStoryReady }: { onStoryReady: (s: GeneratedStory) 
   const [vocabWords, setVocab]    = useState("");
   const [generating, setGen]      = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [usedToday, setUsedToday] = useState(() => getGenerationsToday());
+
+  const remaining = DAILY_LIMIT - usedToday;
 
   const topicSuggestions = ["En dag på jobbet", "Mat och matlagning", "Resor i Sverige", "Familjen", "Hälsa och sjukvård", "Bostadsmarknaden", "Vänner och fritid", "Skolan och utbildning"];
 
   async function handleGenerate() {
     if (!topic.trim()) { setError("Please enter a topic."); return; }
+    if (remaining <= 0) { setError("You have reached your 3 story limit for today. Come back tomorrow!"); return; }
     setError(null);
     setGen(true);
     const story = await generateStory(level, topic, length, vocabWords);
     setGen(false);
-    if (story) onStoryReady(story);
-    else setError("Could not generate story. Please try again.");
+    if (story) {
+      const newCount = incrementGenerationsToday();
+      setUsedToday(newCount);
+      onStoryReady(story);
+    } else {
+      setError("Could not generate story. Please try again.");
+    }
   }
 
   return (
@@ -329,17 +440,33 @@ function AIStoryGenerator({ onStoryReady }: { onStoryReady: (s: GeneratedStory) 
         />
       </div>
 
+      {/* Daily limit badge */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <div style={{
+          padding: "6px 14px", borderRadius: "20px", fontSize: "0.82rem", fontWeight: 700,
+          background: remaining === 0 ? "var(--wrong-bg)" : remaining === 1 ? "var(--yellow-light)" : "var(--correct-bg)",
+          color:      remaining === 0 ? "var(--wrong)"    : remaining === 1 ? "var(--yellow-dark)"  : "var(--correct)",
+        }}>
+          {remaining === 0
+            ? "🚫 Daily limit reached — come back tomorrow"
+            : `✨ ${remaining} / ${DAILY_LIMIT} generations left today`}
+        </div>
+      </div>
+
       {error && <div style={{ color: "var(--wrong)", fontSize: "0.88rem", marginBottom: "12px" }}>⚠️ {error}</div>}
 
-      <button onClick={handleGenerate} disabled={generating || !topic.trim()} style={{
+      <button onClick={handleGenerate} disabled={generating || !topic.trim() || remaining <= 0} style={{
         width: "100%", padding: "14px", borderRadius: "10px",
-        background: generating || !topic.trim() ? "var(--warm-dark)" : "var(--blue)",
-        color: generating || !topic.trim() ? "var(--text-light)" : "white",
-        border: "none", fontWeight: 700, fontSize: "1rem", cursor: generating || !topic.trim() ? "default" : "pointer",
+        background: generating || !topic.trim() || remaining <= 0 ? "var(--warm-dark)" : "var(--blue)",
+        color:      generating || !topic.trim() || remaining <= 0 ? "var(--text-light)" : "white",
+        border: "none", fontWeight: 700, fontSize: "1rem",
+        cursor: generating || !topic.trim() || remaining <= 0 ? "default" : "pointer",
         fontFamily: "'Outfit', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
       }}>
         {generating ? (
           <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span> Genererar berättelse...</>
+        ) : remaining <= 0 ? (
+          <>🚫 Limit reached for today</>
         ) : (
           <>✨ Generera berättelse</>
         )}
@@ -378,7 +505,13 @@ export default function MiniStoriesPage() {
   // Flashcard tab
   const [activeTab, setActiveTab]         = useState<"story"|"flashcards">("story");
 
+  // Saving state
+  const [saving, setSaving]               = useState(false);
+  const [savedSlug, setSavedSlug]         = useState<string | null>(null);
+
   const quizRef = useRef<HTMLDivElement>(null);
+
+
 
   // ─── Load localStorage on mount ───
   useEffect(() => {
@@ -426,6 +559,7 @@ export default function MiniStoriesPage() {
     setQuizFeedback(new Array(qLen).fill(null));
     setXpEarned(0);
     setActiveTab("story");
+    setSavedSlug(null);
   }
 
   function closeStory() {
@@ -499,13 +633,13 @@ export default function MiniStoriesPage() {
   // Unified active story (DB or generated)
   const activeStory: (Story | GeneratedStory) | null = selectedStory ?? generatedStory;
 
-  // Vocab for flashcards — from highlight_words (DB) or vocab (generated)
+  // Vocab for flashcards — from highlight_words across all paragraphs
   const flashVocab: { word: string; translation: string }[] = activeStory
-    ? "paragraphs" in activeStory
-      ? "highlight_words" in (activeStory.paragraphs[0] ?? {})
-        ? (activeStory as Story).paragraphs.flatMap(p => p.highlight_words)
-        : (activeStory as GeneratedStory).vocab
-      : []
+    ? activeStory.paragraphs.flatMap(p =>
+        "highlight_words" in p && Array.isArray((p as any).highlight_words)
+          ? (p as any).highlight_words
+          : []
+      )
     : [];
 
   // word count helper
@@ -636,6 +770,11 @@ export default function MiniStoriesPage() {
                               ✅ Read
                             </span>
                           )}
+                          {(story as any).is_ai_generated && (
+                            <span style={{ background: "var(--yellow-light)", color: "var(--yellow-dark)", padding: "3px 10px", borderRadius: "10px", fontSize: "0.75rem", fontWeight: 700 }}>
+                              ✨ AI
+                            </span>
+                          )}
                         </div>
                         <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "4px" }}>{story.title}</h3>
                         <p style={{ fontSize: "0.85rem", color: "var(--text-light)", marginBottom: "12px", lineHeight: 1.5 }}>{story.description}</p>
@@ -726,6 +865,45 @@ export default function MiniStoriesPage() {
                 {"title_en" in activeStory && <p style={{ color: "var(--text-light)", fontSize: "0.9rem", margin: 0 }}>{(activeStory as any).title_en}</p>}
               </div>
             </div>
+
+            {/* Save to library button — only for unsaved AI stories */}
+            {!isDbStory && (
+              <div style={{ marginBottom: "16px" }}>
+                {savedSlug ? (
+                  <div style={{ background: "var(--correct-bg)", borderRadius: "10px", padding: "10px 16px", fontSize: "0.88rem", color: "var(--correct)", fontWeight: 600 }}>
+                    ✅ Saved to library! It will appear in the story list for everyone.
+                  </div>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setSaving(true);
+                      const slug = await saveGeneratedStory(activeStory as GeneratedStory, storyLevel);
+                      setSaving(false);
+                      if (slug) {
+                        setSavedSlug(slug);
+                        // Refresh the story list in background
+                        fetchStories(selectedLevel).then(setStories);
+                      }
+                    }}
+                    disabled={saving}
+                    style={{
+                      padding: "8px 20px", borderRadius: "8px",
+                      background: saving ? "var(--warm-dark)" : "var(--forest)",
+                      color: saving ? "var(--text-light)" : "white",
+                      border: "none", fontWeight: 700, fontSize: "0.88rem",
+                      cursor: saving ? "default" : "pointer",
+                      fontFamily: "'Outfit', sans-serif",
+                      display: "flex", alignItems: "center", gap: "8px",
+                    }}
+                  >
+                    {saving
+                      ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span> Saving...</>
+                      : "💾 Save to library"
+                    }
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Font size + tip */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
