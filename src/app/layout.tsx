@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { DM_Serif_Display, Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import PWARegister from "@/components/PWARegister";
-import AppWrapper from "@/components/AppWrapper"; // 👈 ADD THIS
+import AppWrapper from "@/components/AppWrapper";
+import { Analytics } from '@vercel/analytics/next';
 
 const dmSerif = DM_Serif_Display({
   weight: ["400"],
@@ -179,7 +180,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <PWARegister />
-        <AppWrapper>{children}</AppWrapper> {/* 👈 WRAP children HERE */}
+        <AppWrapper>{children}</AppWrapper>
+        <Analytics />
       </body>
     </html>
   );
