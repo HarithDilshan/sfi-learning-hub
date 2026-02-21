@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -34,28 +34,122 @@ interface CourseProgress {
   avgScore: number;
 }
 
+// ─── localStorage helpers (for features that still use it) ────────────────────
+function lsGetArray(key: string): string[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(key) ?? "[]"); } catch { return []; }
+}
+
+function getBestStreak(): number {
+  if (typeof window === "undefined") return 0;
+  try { return parseInt(localStorage.getItem("sfihub_best_streak") ?? "0", 10); } catch { return 0; }
+}
+
+function updateBestStreak(current: number) {
+  if (typeof window === "undefined") return;
+  const best = getBestStreak();
+  if (current > best) localStorage.setItem("sfihub_best_streak", String(current));
+}
+
+// ─── Animated counter hook ────────────────────────────────────────────────────
+function useAnimatedCounter(target: number, duration = 1000) {
+  const [value, setValue] = useState(0);
+  const frameRef = useRef<number>(0);
+  useEffect(() => {
+    const start = Date.now();
+    const animate = () => {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(target * eased));
+      if (progress < 1) frameRef.current = requestAnimationFrame(animate);
+    };
+    frameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [target, duration]);
+  return value;
+}
+
+// ─── Level config ─────────────────────────────────────────────────────────────
+const LEVELS = [
+  { min: 0,    max: 100,  label: "Ny",         color: "#5A5A7A", bg: "#F0EBE1", next: 100  },
+  { min: 100,  max: 500,  label: "Nybörjare",  color: "#D4A800", bg: "#FFF8D6", next: 500  },
+  { min: 500,  max: 1000, label: "Aktiv",      color: "#005B99", bg: "#E8F4FD", next: 1000 },
+  { min: 1000, max: 2000, label: "Duktig",     color: "#2D8B4E", bg: "#E8F8EE", next: 2000 },
+  { min: 2000, max: 5000, label: "Avancerad",  color: "#8B5CF6", bg: "#F3E8FF", next: 5000 },
+  { min: 5000, max: Infinity, label: "Mästare",color: "#D4A800", bg: "#FFF8DC", next: 5000 },
+];
+
+function getLevelInfo(xp: number) {
+  return LEVELS.find(l => xp >= l.min && xp < l.max) ?? LEVELS[LEVELS.length - 1];
+}
+
+function getLevelProgress(xp: number): number {
+  const lv = getLevelInfo(xp);
+  if (lv.max === Infinity) return 100;
+  return Math.min(100, ((xp - lv.min) / (lv.max - lv.min)) * 100);
+}
+
+function getXPToNext(xp: number): number {
+  const lv = getLevelInfo(xp);
+  if (lv.max === Infinity) return 0;
+  return lv.max - xp;
+}
+
+// ─── Ring component ───────────────────────────────────────────────────────────
+function LevelRing({ xp, size = 120 }: { xp: number; size?: number }) {
+  const lv = getLevelInfo(xp);
+  const pct = getLevelProgress(xp);
+  const r = (size - 12) / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={10} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r}
+          fill="none"
+          stroke={lv.color}
+          strokeWidth={10}
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dasharray 1s ease" }}
+        />
+      </svg>
+      <div style={{
+        position: "absolute", inset: 0,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}>
+        <div style={{ fontSize: size > 100 ? "1.4rem" : "1rem", fontWeight: 800, color: "white", lineHeight: 1 }}>
+          {Math.round(pct)}%
+        </div>
+        <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{lv.label}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [userId, setUserId] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressData | null>(null);
-  const [cloudStats, setCloudStats] = useState<{
-    wordsLearned: number;
-    wordsMastered: number;
-  } | null>(null);
+  const [cloudStats, setCloudStats] = useState<{ wordsLearned: number; wordsMastered: number } | null>(null);
   const [weeklyGoal, setWeeklyGoal] = useState<WeeklyGoal | null>(null);
   const [goalHistory, setGoalHistory] = useState<WeeklyGoal[]>([]);
   const [editingGoal, setEditingGoal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
+  const [shareMsg, setShareMsg] = useState("");
 
-  // ── New badge system ──────────────────────────────────────────────
-  const {
-    allBadges,
-    unlockedBadges,
-    lockedBadges,
-    loading: badgesLoading,
-    refresh: refreshBadges,
-  } = useBadges(userId);
-  // ─────────────────────────────────────────────────────────────────
+  // localStorage-sourced stats
+  const [storiesRead, setStoriesRead] = useState(0);
+  const [storiesGenerated, setStoriesGenerated] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+
+  const { allBadges, unlockedBadges, lockedBadges, loading: badgesLoading, refresh: refreshBadges } = useBadges(userId);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -63,15 +157,24 @@ export default function ProfilePage() {
     const prog = getProgress();
     setProgress(prog);
 
+    // Update best streak in localStorage
+    updateBestStreak(prog.streak);
+    setBestStreak(Math.max(getBestStreak(), prog.streak));
+
+    // localStorage stats
+    setStoriesRead(lsGetArray("sfihub_read_stories").length);
+    try {
+      const raw = localStorage.getItem("sfihub_gen_limit");
+      if (raw) {
+        const { count } = JSON.parse(raw);
+        setStoriesGenerated(count || 0);
+      }
+    } catch { /* ignore */ }
+
     if (user) {
       setUserId(user.id);
       const stats = await getUserStats(user.id);
-      if (stats) {
-        setCloudStats({
-          wordsLearned: stats.wordsLearned,
-          wordsMastered: stats.wordsMastered,
-        });
-      }
+      if (stats) setCloudStats({ wordsLearned: stats.wordsLearned, wordsMastered: stats.wordsMastered });
       const goal = await loadWeeklyGoal(user.id);
       setWeeklyGoal(goal);
       const history = await loadGoalHistory(user.id);
@@ -84,21 +187,46 @@ export default function ProfilePage() {
   useEffect(() => {
     loadData();
     const handler = () => {
-      setProgress(getProgress());
-      if (userId) {
-        loadWeeklyGoal(userId).then(setWeeklyGoal);
-      }
+      const prog = getProgress();
+      setProgress(prog);
+      updateBestStreak(prog.streak);
+      setBestStreak(Math.max(getBestStreak(), prog.streak));
+      if (userId) loadWeeklyGoal(userId).then(setWeeklyGoal);
     };
     window.addEventListener("progress-update", handler);
     return () => window.removeEventListener("progress-update", handler);
-  }, [loadData]);
+  }, [loadData, userId]);
 
-  // Refresh badges when the achievements tab is opened
   useEffect(() => {
-    if (tab === "achievements") {
-      refreshBadges();
-    }
+    if (tab === "achievements") refreshBadges();
   }, [tab, refreshBadges]);
+
+  // Dark mode
+  useEffect(() => {
+    const root = document.documentElement;
+    if (darkMode) {
+      root.style.setProperty("--warm", "#1a1a2e");
+      root.style.setProperty("--warm-dark", "#16213e");
+      root.style.setProperty("--text", "#e0e0e0");
+      root.style.setProperty("--text-light", "#a0a0b0");
+      root.style.setProperty("--white", "#1e1e30");
+    } else {
+      root.style.setProperty("--warm", "#FAF7F2");
+      root.style.setProperty("--warm-dark", "#F0EBE1");
+      root.style.setProperty("--text", "#1A1A2E");
+      root.style.setProperty("--text-light", "#5A5A7A");
+      root.style.setProperty("--white", "#FFFFFF");
+    }
+    return () => {
+      root.style.setProperty("--warm", "#FAF7F2");
+      root.style.setProperty("--warm-dark", "#F0EBE1");
+      root.style.setProperty("--text", "#1A1A2E");
+      root.style.setProperty("--text-light", "#5A5A7A");
+      root.style.setProperty("--white", "#FFFFFF");
+    };
+  }, [darkMode]);
+
+  const animatedXP = useAnimatedCounter(progress?.xp ?? 0);
 
   if (loading || badgesLoading || !progress) {
     return (
@@ -112,79 +240,37 @@ export default function ProfilePage() {
     );
   }
 
-  // Compute data
   const meta = getLevelMeta();
+  const courseProgress: CourseProgress[] = (["A", "B", "C", "D", "G"] as const).map((level) => {
+    const levelData = courseData[level];
+    const topics = levelData?.topics || [];
+    const completed = topics.filter(t => progress.completedTopics[t.id]).length;
+    const scores = topics.map(t => progress.completedTopics[t.id]?.bestScore || 0).filter(s => s > 0);
+    const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    return { level, label: meta[level]?.label || level, total: topics.length, completed, avgScore };
+  });
 
-  const courseProgress: CourseProgress[] = (["A", "B", "C", "D", "G"] as const).map(
-    (level) => {
-      const levelData = courseData[level];
-      const topics = levelData?.topics || [];
-      const completed = topics.filter(
-        (t) => progress.completedTopics[t.id]
-      ).length;
-      const scores = topics
-        .map((t) => progress.completedTopics[t.id]?.bestScore || 0)
-        .filter((s) => s > 0);
-      const avgScore =
-        scores.length > 0
-          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-          : 0;
-
-      return {
-        level,
-        label: meta[level]?.label || level,
-        total: topics.length,
-        completed,
-        avgScore,
-      };
-    }
-  );
-
-  const totalTopics = courseProgress.reduce((s, c) => s + c.total, 0);
+  const totalTopics    = courseProgress.reduce((s, c) => s + c.total, 0);
   const totalCompleted = courseProgress.reduce((s, c) => s + c.completed, 0);
-  const wordsKnown = Object.keys(progress.wordHistory).length;
-  const wordAccuracy =
-    wordsKnown > 0
-      ? Math.round(
-        (Object.values(progress.wordHistory).reduce(
-          (s, w) => s + w.correct,
-          0
-        ) /
-          Object.values(progress.wordHistory).reduce(
-            (s, w) => s + w.correct + w.wrong,
-            0
-          )) *
-        100
-      )
-      : 0;
+  const wordsKnown     = Object.keys(progress.wordHistory).length;
+  const wordAccuracy   = wordsKnown > 0
+    ? Math.round((Object.values(progress.wordHistory).reduce((s, w) => s + w.correct, 0) /
+        Object.values(progress.wordHistory).reduce((s, w) => s + w.correct + w.wrong, 0)) * 100)
+    : 0;
 
   const allTopicScores = Object.values(progress.completedTopics);
-  const overallAvg =
-    allTopicScores.length > 0
-      ? Math.round(
-        allTopicScores.reduce((s, t) => s + t.bestScore, 0) /
-        allTopicScores.length
-      )
-      : 0;
+  const overallAvg     = allTopicScores.length > 0
+    ? Math.round(allTopicScores.reduce((s, t) => s + t.bestScore, 0) / allTopicScores.length)
+    : 0;
 
   const streakDays = generateStreakCalendar(progress);
-
-  function getLevel(xp: number) {
-    if (xp >= 5000) return { label: "Mästare", color: "#FFD700", bg: "#FFF8DC" };
-    if (xp >= 2000) return { label: "Avancerad", color: "#8B5CF6", bg: "#F3E8FF" };
-    if (xp >= 1000) return { label: "Duktig", color: "#2D8B4E", bg: "#E8F8EE" };
-    if (xp >= 500) return { label: "Aktiv", color: "#005B99", bg: "#E8F4FD" };
-    if (xp >= 100) return { label: "Nybörjare", color: "#D4A800", bg: "#FFF8D6" };
-    return { label: "Ny", color: "#5A5A7A", bg: "#F0EBE1" };
-  }
-
-  const level = getLevel(progress.xp);
+  const lv         = getLevelInfo(progress.xp);
+  const lvPct      = getLevelProgress(progress.xp);
 
   async function handleSetGoal(xpTarget: number, topicsTarget: number) {
     if (!userId) return;
     const goal: WeeklyGoal = {
-      xpTarget,
-      topicsTarget,
+      xpTarget, topicsTarget,
       xpEarned: weeklyGoal?.xpEarned || 0,
       topicsCompleted: weeklyGoal?.topicsCompleted || 0,
       weekStart: weeklyGoal?.weekStart || new Date().toISOString().split("T")[0],
@@ -194,102 +280,194 @@ export default function ProfilePage() {
     setEditingGoal(false);
   }
 
+  async function handleShare() {
+    const text = `🇸🇪 Jag lär mig Svenska på sfihub.se!\n\n⭐ ${progress.xp} XP | 🔥 ${progress.streak} dagars streak | 📚 ${totalCompleted}/${totalTopics} ämnen klara\n\n#LearnSwedish #SFI #Svenska`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Min svenska framsteg", text, url: "https://sfihub.se" });
+      } else {
+        await navigator.clipboard.writeText(text + "\nhttps://sfihub.se");
+        setShareMsg("Kopierad! ✅");
+        setTimeout(() => setShareMsg(""), 2500);
+      }
+    } catch { /* cancelled */ }
+  }
+
   return (
     <>
       <Header />
-      <div className="max-w-[900px] mx-auto px-4 sm:px-8 py-10 pb-20 animate-fade-in">
+      <div
+        className="max-w-[900px] mx-auto px-4 sm:px-8 py-10 pb-20 animate-fade-in"
+        style={{ background: "var(--warm)", minHeight: "100vh", transition: "background 0.3s" }}
+      >
         {/* Breadcrumb */}
-        <div
-          className="flex items-center gap-2 text-sm mb-6"
-          style={{ color: "var(--text-light)" }}
-        >
-          <Link href="/" className="no-underline" style={{ color: "var(--blue)" }}>
-            Hem
-          </Link>
-          <span>›</span>
-          <span>Min Profil</span>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-light)" }}>
+            <Link href="/" className="no-underline" style={{ color: "var(--blue)" }}>Hem</Link>
+            <span>›</span>
+            <span>Min Profil</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Dark mode toggle */}
+            <button
+              onClick={() => setDarkMode(d => !d)}
+              title={darkMode ? "Ljust läge" : "Mörkt läge"}
+              style={{
+                padding: "7px 14px", borderRadius: "8px", border: "2px solid var(--warm-dark)",
+                background: darkMode ? "#1e1e30" : "white", cursor: "pointer",
+                fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600,
+                color: "var(--text)", display: "flex", alignItems: "center", gap: "6px",
+              }}
+            >
+              {darkMode ? "☀️ Ljust" : "🌙 Mörkt"}
+            </button>
+            {/* Share button */}
+            <button
+              onClick={handleShare}
+              style={{
+                padding: "7px 14px", borderRadius: "8px", border: "none",
+                background: "var(--blue)", cursor: "pointer",
+                fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "white",
+                display: "flex", alignItems: "center", gap: "6px",
+              }}
+            >
+              📤 {shareMsg || "Dela"}
+            </button>
+          </div>
         </div>
 
-        {/* ═══ PROFILE HEADER ═══ */}
+        {/* ═══ PROFILE HERO CARD ═══ */}
         <div
-          className="rounded-2xl p-6 sm:p-8 mb-8 text-white"
+          className="rounded-2xl p-6 sm:p-8 mb-6 text-white relative overflow-hidden"
           style={{
             background: "linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
           }}
         >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
+          {/* Background decoration */}
+          <div style={{
+            position: "absolute", top: -60, right: -60,
+            width: 200, height: 200,
+            background: "radial-gradient(circle, rgba(254,204,2,0.15) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }} />
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            {/* Level ring */}
+            <LevelRing xp={progress.xp} size={120} />
+
+            {/* Info */}
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span
-                  className="text-xs px-3 py-1 rounded-full font-semibold"
-                  style={{ background: level.bg, color: level.color }}
+                  className="text-xs px-3 py-1 rounded-full font-bold"
+                  style={{ background: lv.bg, color: lv.color }}
                 >
-                  {level.label}
+                  {lv.label}
                 </span>
                 <span className="text-sm opacity-60">
                   {unlockedBadges.length}/{allBadges.length} badges
                 </span>
+                {!userId && (
+                  <span className="text-xs opacity-60 italic">· Inte inloggad</span>
+                )}
               </div>
-              <h2
-                className="text-3xl mb-1"
-                style={{ fontFamily: "'DM Serif Display', serif" }}
-              >
+              <h2 className="text-3xl mb-1" style={{ fontFamily: "'DM Serif Display', serif" }}>
                 Min Profil
               </h2>
-              {!userId && (
-                <p className="text-sm opacity-70">
-                  Logga in för att spara din progress permanent
-                </p>
-              )}
+              <div className="text-sm opacity-70">
+                {getXPToNext(progress.xp) > 0
+                  ? `${getXPToNext(progress.xp)} XP till ${LEVELS[LEVELS.findIndex(l => l.label === lv.label) + 1]?.label ?? "max"}`
+                  : "Max nivå uppnådd! 🎉"}
+              </div>
+              {/* XP bar */}
+              <div className="mt-3 w-full max-w-xs">
+                <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.15)" }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${lvPct}%`,
+                      background: "var(--yellow)",
+                      transition: "width 1s ease",
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="flex gap-6">
+            {/* Big stats */}
+            <div className="flex gap-5 flex-shrink-0">
               <div className="text-center">
-                <div className="text-3xl font-bold">{progress.xp}</div>
-                <div className="text-xs opacity-60">XP</div>
+                <div className="text-4xl font-black tabular-nums">{animatedXP}</div>
+                <div className="text-xs opacity-60 mt-1">XP</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold">{progress.streak}</div>
-                <div className="text-xs opacity-60">Streak</div>
+                <div className="text-4xl font-black">{progress.streak}</div>
+                <div className="text-xs opacity-60 mt-1">Streak 🔥</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold">{totalCompleted}</div>
-                <div className="text-xs opacity-60">Ämnen</div>
+                <div className="text-4xl font-black">{totalCompleted}</div>
+                <div className="text-xs opacity-60 mt-1">Ämnen</div>
               </div>
-            </div>
-          </div>
-
-          {/* XP progress to next level */}
-          <div className="mt-6">
-            <div className="flex justify-between text-xs opacity-60 mb-1">
-              <span>{level.label}</span>
-              <span>{getNextLevelXP(progress.xp)} XP till nästa nivå</span>
-            </div>
-            <div
-              className="w-full h-2.5 rounded-full overflow-hidden"
-              style={{ background: "rgba(255,255,255,0.15)" }}
-            >
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${getLevelProgress(progress.xp)}%`,
-                  background: "var(--yellow)",
-                }}
-              />
             </div>
           </div>
         </div>
 
+        {/* ═══ STREAK MOTIVATION CARD ═══ */}
+        <div
+          className="rounded-xl p-5 mb-6 flex flex-col sm:flex-row gap-4 items-center"
+          style={{
+            background: progress.streak >= 7
+              ? "linear-gradient(135deg, #FF6B35, #D4380D)"
+              : "linear-gradient(135deg, #FFF8D6, #FFF0A0)",
+            border: progress.streak >= 7 ? "none" : "1px solid var(--yellow)",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ fontSize: "3rem", lineHeight: 1 }}>
+            {progress.streak === 0 ? "💤" : progress.streak < 3 ? "🌱" : progress.streak < 7 ? "🔥" : progress.streak < 30 ? "🚀" : "🌟"}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div
+              className="font-bold text-lg mb-0.5"
+              style={{ color: progress.streak >= 7 ? "white" : "var(--yellow-dark)" }}
+            >
+              {progress.streak === 0
+                ? "Börja din streak idag!"
+                : progress.streak < 3
+                ? `${progress.streak} dagars streak — bra start!`
+                : progress.streak < 7
+                ? `${progress.streak} dagars streak — fortsätt!`
+                : progress.streak < 30
+                ? `🔥 ${progress.streak} dagar i rad — imponerande!`
+                : `🌟 ${progress.streak} dagar — du är en legend!`}
+            </div>
+            <div style={{ fontSize: "0.85rem", color: progress.streak >= 7 ? "rgba(255,255,255,0.8)" : "var(--text-light)" }}>
+              Bästa streak: <strong>{bestStreak}</strong> dagar
+              {progress.streak > 0 && ` · Öva idag för att hålla din streak!`}
+            </div>
+          </div>
+          <Link
+            href="/"
+            style={{
+              padding: "10px 20px", borderRadius: "8px", fontWeight: 700, fontSize: "0.88rem",
+              background: progress.streak >= 7 ? "rgba(255,255,255,0.2)" : "var(--yellow)",
+              color: progress.streak >= 7 ? "white" : "var(--text)",
+              textDecoration: "none", flexShrink: 0, border: "none",
+              fontFamily: "'Outfit', sans-serif",
+            }}
+          >
+            Öva nu →
+          </Link>
+        </div>
+
         {/* ═══ TABS ═══ */}
         <div className="flex gap-1 mb-8 overflow-x-auto">
-          {(
-            [
-              { key: "overview", label: "📊 Översikt" },
-              { key: "achievements", label: `🏅 Badges (${unlockedBadges.length})` },
-              { key: "goals", label: "🎯 Veckomål" },
-            ] as { key: Tab; label: string }[]
-          ).map((t) => (
+          {([
+            { key: "overview",      label: "📊 Översikt" },
+            { key: "achievements",  label: `🏅 Badges (${unlockedBadges.length})` },
+            { key: "goals",         label: "🎯 Veckomål" },
+          ] as { key: Tab; label: string }[]).map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -309,83 +487,97 @@ export default function ProfilePage() {
         {/* ═══ OVERVIEW TAB ═══ */}
         {tab === "overview" && (
           <div className="space-y-6">
-            {/* Stats Grid */}
+
+            {/* ── Big stats grid ── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
-                { label: "Ämnen klara", value: `${totalCompleted}/${totalTopics}`, icon: "📚" },
-                { label: "Snittpoäng", value: `${overallAvg}%`, icon: "📈" },
-                { label: "Ord övade", value: `${wordsKnown}`, icon: "📝" },
-                { label: "Ordprecision", value: `${wordAccuracy}%`, icon: "🎯" },
+                { label: "Ämnen klara",   value: `${totalCompleted}/${totalTopics}`, icon: "📚", sub: `${Math.round((totalCompleted/totalTopics)*100)||0}% av kursen`, color: "var(--blue)" },
+                { label: "Snittpoäng",    value: `${overallAvg}%`,                   icon: "📈", sub: "Genomsnitt på quizzen", color: "var(--forest)" },
+                { label: "Ord övade",     value: `${wordsKnown}`,                    icon: "📝", sub: `${wordAccuracy}% precision`,  color: "#8B5CF6" },
+                { label: "Berättelser",   value: `${storiesRead}`,                   icon: "📖", sub: `${storiesGenerated} AI-genererade`, color: "#D4A800" },
               ].map((stat, i) => (
                 <div
                   key={i}
-                  className="rounded-xl p-5 text-center"
-                  style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
+                  className="rounded-xl p-5"
+                  style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.04)" }}
                 >
-                  <div className="text-2xl mb-2">{stat.icon}</div>
-                  <div className="text-2xl font-bold" style={{ color: "var(--blue-dark)" }}>
+                  <div className="text-3xl mb-3">{stat.icon}</div>
+                  <div className="text-3xl font-black mb-1" style={{ color: stat.color, fontVariantNumeric: "tabular-nums" }}>
                     {stat.value}
                   </div>
-                  <div className="text-xs mt-1" style={{ color: "var(--text-light)" }}>
-                    {stat.label}
+                  <div className="text-xs font-semibold mb-0.5">{stat.label}</div>
+                  <div className="text-xs" style={{ color: "var(--text-light)" }}>{stat.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Secondary stats ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {[
+                { label: "Streak-rekord",  value: `${bestStreak}d`,   icon: "🏆", color: "#D4A800" },
+                { label: "Ordprecision",   value: `${wordAccuracy}%`, icon: "🎯", color: "var(--forest)" },
+                { label: "Badges",         value: `${unlockedBadges.length}/${allBadges.length}`, icon: "🏅", color: "#8B5CF6" },
+              ].map((stat, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl p-4 flex items-center gap-3"
+                  style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
+                >
+                  <div className="text-2xl">{stat.icon}</div>
+                  <div>
+                    <div className="font-bold text-xl" style={{ color: stat.color }}>{stat.value}</div>
+                    <div className="text-xs" style={{ color: "var(--text-light)" }}>{stat.label}</div>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Course Progress Bars */}
-            <div
-              className="rounded-xl p-6"
-              style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
-            >
+            {/* ── Course progress bars ── */}
+            <div className="rounded-xl p-6" style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
               <h3 className="font-semibold mb-4">Kursframsteg</h3>
-              <div className="space-y-4">
-                {courseProgress.map((cp) => {
+              <div className="space-y-5">
+                {courseProgress.map(cp => {
                   const pct = cp.total > 0 ? (cp.completed / cp.total) * 100 : 0;
                   return (
                     <div key={cp.level}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium">
+                      <div className="flex justify-between text-sm mb-1.5">
+                        <span className="font-semibold">
                           Kurs {cp.level}{" "}
-                          <span style={{ color: "var(--text-light)" }}>({cp.label})</span>
+                          <span style={{ color: "var(--text-light)", fontWeight: 400 }}>({cp.label})</span>
                         </span>
                         <span style={{ color: "var(--text-light)" }}>
                           {cp.completed}/{cp.total}
                           {cp.avgScore > 0 && (
-                            <span className="ml-2" style={{ color: "var(--blue)" }}>
+                            <span className="ml-2" style={{ color: "var(--blue)", fontWeight: 600 }}>
                               Snitt: {cp.avgScore}%
                             </span>
                           )}
                         </span>
                       </div>
-                      <div
-                        className="w-full h-3 rounded-full overflow-hidden"
-                        style={{ background: "var(--warm-dark)" }}
-                      >
+                      <div className="w-full h-4 rounded-full overflow-hidden flex" style={{ background: "var(--warm-dark)" }}>
                         <div
                           className="h-full rounded-full transition-all duration-700"
                           style={{
                             width: `${pct}%`,
-                            background:
-                              pct === 100
-                                ? "var(--correct)"
-                                : pct > 0
-                                  ? "linear-gradient(90deg, var(--blue), var(--forest))"
-                                  : "transparent",
+                            background: pct === 100 ? "var(--correct)"
+                              : pct > 0 ? "linear-gradient(90deg, var(--blue), var(--forest))"
+                              : "transparent",
                           }}
                         />
                       </div>
+                      {pct === 100 && (
+                        <div className="text-xs mt-1" style={{ color: "var(--correct)", fontWeight: 600 }}>
+                          ✅ Kurs {cp.level} avklarad!
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Streak Calendar */}
-            <div
-              className="rounded-xl p-6"
-              style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
-            >
+            {/* ── Streak calendar ── */}
+            <div className="rounded-xl p-6" style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
               <h3 className="font-semibold mb-4">
                 Aktivitetskalender{" "}
                 <span className="text-sm font-normal" style={{ color: "var(--text-light)" }}>
@@ -393,29 +585,21 @@ export default function ProfilePage() {
                 </span>
               </h3>
               <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-                {["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"].map((d) => (
-                  <div
-                    key={d}
-                    className="text-xs text-center font-medium py-1"
-                    style={{ color: "var(--text-light)" }}
-                  >
+                {["Mån","Tis","Ons","Tor","Fre","Lör","Sön"].map(d => (
+                  <div key={d} className="text-xs text-center font-medium py-1" style={{ color: "var(--text-light)" }}>
                     {d}
                   </div>
                 ))}
                 {streakDays.map((day, i) => (
                   <div
                     key={i}
-                    className="aspect-square rounded-md flex items-center justify-center text-xs relative group"
+                    className="aspect-square rounded-md flex items-center justify-center text-xs"
                     style={{
                       background: day.active
-                        ? day.intensity === "high"
-                          ? "var(--forest)"
-                          : day.intensity === "medium"
-                            ? "var(--correct)"
-                            : "#a7d5b8"
-                        : day.future
-                          ? "transparent"
-                          : "var(--warm-dark)",
+                        ? day.intensity === "high" ? "var(--forest)"
+                          : day.intensity === "medium" ? "var(--correct)"
+                          : "#a7d5b8"
+                        : day.future ? "transparent" : "var(--warm-dark)",
                       color: day.active ? "white" : "transparent",
                       border: day.isToday ? "2px solid var(--blue)" : "none",
                       opacity: day.future ? 0.3 : 1,
@@ -423,7 +607,7 @@ export default function ProfilePage() {
                     title={day.date}
                   >
                     {day.isToday && (
-                      <span style={{ color: day.active ? "white" : "var(--blue)", fontSize: "0.65rem" }}>
+                      <span style={{ color: day.active ? "white" : "var(--blue)", fontSize: "0.6rem" }}>
                         idag
                       </span>
                     )}
@@ -433,21 +617,17 @@ export default function ProfilePage() {
               <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: "var(--text-light)" }}>
                 <span>Mindre</span>
                 <div className="flex gap-1">
-                  <div className="w-3.5 h-3.5 rounded-sm" style={{ background: "var(--warm-dark)" }} />
-                  <div className="w-3.5 h-3.5 rounded-sm" style={{ background: "#a7d5b8" }} />
-                  <div className="w-3.5 h-3.5 rounded-sm" style={{ background: "var(--correct)" }} />
-                  <div className="w-3.5 h-3.5 rounded-sm" style={{ background: "var(--forest)" }} />
+                  {["var(--warm-dark)","#a7d5b8","var(--correct)","var(--forest)"].map((c, i) => (
+                    <div key={i} className="w-3.5 h-3.5 rounded-sm" style={{ background: c }} />
+                  ))}
                 </div>
                 <span>Mer</span>
               </div>
             </div>
 
-            {/* Recent Badges */}
+            {/* ── Recent badges ── */}
             {unlockedBadges.length > 0 && (
-              <div
-                className="rounded-xl p-6"
-                style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
-              >
+              <div className="rounded-xl p-6" style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-semibold">Senaste badges</h3>
                   <button
@@ -459,11 +639,11 @@ export default function ProfilePage() {
                   </button>
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-2">
-                  {unlockedBadges.slice(-5).reverse().map((b) => (
+                  {unlockedBadges.slice(-5).reverse().map(b => (
                     <div
                       key={b.id}
-                      className="flex-shrink-0 rounded-xl p-4 text-center min-w-[100px]"
-                      style={{ background: "var(--yellow-light)" }}
+                      className="flex-shrink-0 rounded-xl p-4 text-center min-w-[90px]"
+                      style={{ background: "var(--yellow-light)", border: "1px solid var(--yellow)" }}
                     >
                       <div className="text-3xl mb-1">{b.icon}</div>
                       <div className="text-xs font-semibold">{b.name_sv}</div>
@@ -493,9 +673,7 @@ export default function ProfilePage() {
                   / {allBadges.length}
                 </span>
               </div>
-              <p className="text-sm" style={{ color: "var(--text-light)" }}>
-                badges upplåsta
-              </p>
+              <p className="text-sm" style={{ color: "var(--text-light)" }}>badges upplåsta</p>
               <div
                 className="w-full max-w-[300px] h-3 rounded-full overflow-hidden mx-auto mt-3"
                 style={{ background: "var(--warm-dark)" }}
@@ -510,30 +688,24 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Unlocked */}
             {unlockedBadges.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3" style={{ color: "var(--correct)" }}>
                   ✅ Upplåsta ({unlockedBadges.length})
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {unlockedBadges.map((b) => (
-                    <BadgeCard key={b.id} badge={b} unlocked />
-                  ))}
+                  {unlockedBadges.map(b => <BadgeCard key={b.id} badge={b} unlocked />)}
                 </div>
               </div>
             )}
 
-            {/* Locked */}
             {lockedBadges.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3" style={{ color: "var(--text-light)" }}>
                   🔒 Låsta ({lockedBadges.length})
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {lockedBadges.map((b) => (
-                    <BadgeCard key={b.id} badge={b} unlocked={false} />
-                  ))}
+                  {lockedBadges.map(b => <BadgeCard key={b.id} badge={b} unlocked={false} />)}
                 </div>
               </div>
             )}
@@ -549,20 +721,14 @@ export default function ProfilePage() {
                 style={{ background: "var(--yellow-light)", border: "1px solid var(--yellow)" }}
               >
                 <div className="text-4xl mb-3">🎯</div>
-                <p className="text-lg font-semibold mb-2">
-                  Logga in för att sätta veckomål!
-                </p>
+                <p className="text-lg font-semibold mb-2">Logga in för att sätta veckomål!</p>
                 <p className="text-sm" style={{ color: "var(--text-light)" }}>
                   Veckomål sparas i ditt konto och följer dig mellan enheter.
                 </p>
               </div>
             ) : (
               <>
-                {/* Current Goal */}
-                <div
-                  className="rounded-xl p-6"
-                  style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
-                >
+                <div className="rounded-xl p-6" style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="font-semibold">Denna vecka</h3>
@@ -573,12 +739,7 @@ export default function ProfilePage() {
                     <button
                       onClick={() => setEditingGoal(true)}
                       className="text-sm px-3 py-1.5 rounded-lg cursor-pointer border-2"
-                      style={{
-                        borderColor: "var(--warm-dark)",
-                        background: "white",
-                        fontFamily: "'Outfit', sans-serif",
-                        color: "var(--text)",
-                      }}
+                      style={{ borderColor: "var(--warm-dark)", background: "white", fontFamily: "'Outfit', sans-serif", color: "var(--text)" }}
                     >
                       Ändra mål
                     </button>
@@ -589,14 +750,9 @@ export default function ProfilePage() {
                       {(() => {
                         const enc = getEncouragement(weeklyGoal);
                         return (
-                          <div
-                            className="rounded-lg px-4 py-3 mb-5 flex items-center gap-3 text-sm"
-                            style={{ background: "var(--warm)" }}
-                          >
+                          <div className="rounded-lg px-4 py-3 mb-5 flex items-center gap-3 text-sm" style={{ background: "var(--warm)" }}>
                             <span className="text-2xl">{enc.emoji}</span>
-                            <span style={{ color: enc.color, fontWeight: 500 }}>
-                              {enc.message}
-                            </span>
+                            <span style={{ color: enc.color, fontWeight: 500 }}>{enc.message}</span>
                           </div>
                         );
                       })()}
@@ -604,22 +760,14 @@ export default function ProfilePage() {
                       <div className="mb-5">
                         <div className="flex justify-between text-sm mb-1.5">
                           <span className="font-medium">XP denna vecka</span>
-                          <span style={{ color: "var(--blue)" }}>
-                            {weeklyGoal.xpEarned} / {weeklyGoal.xpTarget} XP
-                          </span>
+                          <span style={{ color: "var(--blue)" }}>{weeklyGoal.xpEarned} / {weeklyGoal.xpTarget} XP</span>
                         </div>
-                        <div
-                          className="w-full h-4 rounded-full overflow-hidden"
-                          style={{ background: "var(--warm-dark)" }}
-                        >
+                        <div className="w-full h-4 rounded-full overflow-hidden" style={{ background: "var(--warm-dark)" }}>
                           <div
                             className="h-full rounded-full transition-all duration-700"
                             style={{
                               width: `${Math.min(100, (weeklyGoal.xpEarned / weeklyGoal.xpTarget) * 100)}%`,
-                              background:
-                                weeklyGoal.xpEarned >= weeklyGoal.xpTarget
-                                  ? "var(--correct)"
-                                  : "linear-gradient(90deg, var(--blue), var(--forest))",
+                              background: weeklyGoal.xpEarned >= weeklyGoal.xpTarget ? "var(--correct)" : "linear-gradient(90deg, var(--blue), var(--forest))",
                             }}
                           />
                         </div>
@@ -628,22 +776,14 @@ export default function ProfilePage() {
                       <div>
                         <div className="flex justify-between text-sm mb-1.5">
                           <span className="font-medium">Ämnen denna vecka</span>
-                          <span style={{ color: "var(--blue)" }}>
-                            {weeklyGoal.topicsCompleted} / {weeklyGoal.topicsTarget} ämnen
-                          </span>
+                          <span style={{ color: "var(--blue)" }}>{weeklyGoal.topicsCompleted} / {weeklyGoal.topicsTarget} ämnen</span>
                         </div>
-                        <div
-                          className="w-full h-4 rounded-full overflow-hidden"
-                          style={{ background: "var(--warm-dark)" }}
-                        >
+                        <div className="w-full h-4 rounded-full overflow-hidden" style={{ background: "var(--warm-dark)" }}>
                           <div
                             className="h-full rounded-full transition-all duration-700"
                             style={{
                               width: `${Math.min(100, (weeklyGoal.topicsCompleted / weeklyGoal.topicsTarget) * 100)}%`,
-                              background:
-                                weeklyGoal.topicsCompleted >= weeklyGoal.topicsTarget
-                                  ? "var(--correct)"
-                                  : "linear-gradient(90deg, var(--yellow), var(--yellow-dark))",
+                              background: weeklyGoal.topicsCompleted >= weeklyGoal.topicsTarget ? "var(--correct)" : "linear-gradient(90deg, var(--yellow), var(--yellow-dark))",
                             }}
                           />
                         </div>
@@ -660,19 +800,13 @@ export default function ProfilePage() {
                             key={i}
                             onClick={() => handleSetGoal(preset.xp, preset.topics)}
                             className="text-left p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
-                            style={{
-                              borderColor: "var(--warm-dark)",
-                              background: "var(--warm)",
-                              fontFamily: "'Outfit', sans-serif",
-                            }}
+                            style={{ borderColor: "var(--warm-dark)", background: "var(--warm)", fontFamily: "'Outfit', sans-serif" }}
                           >
                             <div className="font-semibold text-sm">{preset.label}</div>
                             <div className="text-xs mt-1" style={{ color: "var(--text-light)" }}>
                               {preset.xp} XP · {preset.topics} ämnen per vecka
                             </div>
-                            <div className="text-xs mt-0.5 italic" style={{ color: "var(--text-light)" }}>
-                              {preset.desc}
-                            </div>
+                            <div className="text-xs mt-0.5 italic" style={{ color: "var(--text-light)" }}>{preset.desc}</div>
                           </button>
                         ))}
                       </div>
@@ -688,10 +822,7 @@ export default function ProfilePage() {
                 </div>
 
                 {goalHistory.length > 1 && (
-                  <div
-                    className="rounded-xl p-6"
-                    style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
-                  >
+                  <div className="rounded-xl p-6" style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
                     <h3 className="font-semibold mb-4">Tidigare veckor</h3>
                     <div className="space-y-3">
                       {goalHistory.slice(1).map((g, i) => {
@@ -699,28 +830,17 @@ export default function ProfilePage() {
                         const topicsPct = Math.min(100, Math.round((g.topicsCompleted / g.topicsTarget) * 100));
                         const achieved = xpPct >= 100 && topicsPct >= 100;
                         return (
-                          <div
-                            key={i}
-                            className="flex items-center gap-4 p-3 rounded-lg"
-                            style={{ background: "var(--warm)" }}
-                          >
+                          <div key={i} className="flex items-center gap-4 p-3 rounded-lg" style={{ background: "var(--warm)" }}>
                             <span className="text-xl flex-shrink-0">{achieved ? "✅" : "📊"}</span>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium">
-                                Vecka{" "}
-                                {new Date(g.weekStart).toLocaleDateString("sv-SE", {
-                                  day: "numeric",
-                                  month: "short",
-                                })}
+                                Vecka {new Date(g.weekStart).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
                               </div>
                               <div className="text-xs" style={{ color: "var(--text-light)" }}>
                                 {g.xpEarned}/{g.xpTarget} XP · {g.topicsCompleted}/{g.topicsTarget} ämnen
                               </div>
                             </div>
-                            <span
-                              className="text-sm font-bold flex-shrink-0"
-                              style={{ color: achieved ? "var(--correct)" : "var(--text-light)" }}
-                            >
+                            <span className="text-sm font-bold flex-shrink-0" style={{ color: achieved ? "var(--correct)" : "var(--text-light)" }}>
                               {xpPct}%
                             </span>
                           </div>
@@ -739,7 +859,7 @@ export default function ProfilePage() {
   );
 }
 
-// ─── BADGE CARD COMPONENT ───
+// ─── BADGE CARD ───────────────────────────────────────────────────────────────
 function BadgeCard({ badge, unlocked }: { badge: BadgeWithStatus; unlocked: boolean }) {
   const categoryColors: Record<string, string> = {
     beginner: "var(--forest-light)",
@@ -748,14 +868,14 @@ function BadgeCard({ badge, unlocked }: { badge: BadgeWithStatus; unlocked: bool
     streak: "#FDE8E6",
     special: "#F3E8FF",
   };
-
   return (
     <div
-      className="rounded-xl p-4 text-center transition-all"
+      className="rounded-xl p-4 text-center transition-all hover:-translate-y-0.5"
       style={{
         background: unlocked ? categoryColors[badge.category] || "var(--warm)" : "var(--warm)",
         opacity: unlocked ? 1 : 0.5,
         border: unlocked ? "1px solid rgba(0,0,0,0.06)" : "1px dashed var(--warm-dark)",
+        boxShadow: unlocked ? "0 2px 8px rgba(0,0,0,0.05)" : "none",
       }}
     >
       <div className="text-3xl mb-2" style={{ filter: unlocked ? "none" : "grayscale(1)" }}>
@@ -765,44 +885,16 @@ function BadgeCard({ badge, unlocked }: { badge: BadgeWithStatus; unlocked: bool
       <div className="text-xs" style={{ color: "var(--text-light)", lineHeight: 1.3 }}>
         {badge.description}
       </div>
-      {/* Progress bar for locked badges */}
       {!unlocked && badge.progressPct > 0 && (
-        <div
-          className="w-full h-1.5 rounded-full overflow-hidden mt-2"
-          style={{ background: "var(--warm-dark)" }}
-        >
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: `${badge.progressPct}%`,
-              background: "var(--blue)",
-            }}
-          />
+        <div className="w-full h-1.5 rounded-full overflow-hidden mt-2" style={{ background: "var(--warm-dark)" }}>
+          <div className="h-full rounded-full" style={{ width: `${badge.progressPct}%`, background: "var(--blue)" }} />
         </div>
       )}
     </div>
   );
 }
 
-// ─── HELPER FUNCTIONS ───
-function getNextLevelXP(xp: number): number {
-  const thresholds = [100, 500, 1000, 2000, 5000];
-  for (const t of thresholds) {
-    if (xp < t) return t - xp;
-  }
-  return 0;
-}
-
-function getLevelProgress(xp: number): number {
-  const levels = [0, 100, 500, 1000, 2000, 5000];
-  for (let i = 1; i < levels.length; i++) {
-    if (xp < levels[i]) {
-      return ((xp - levels[i - 1]) / (levels[i] - levels[i - 1])) * 100;
-    }
-  }
-  return 100;
-}
-
+// ─── STREAK CALENDAR ──────────────────────────────────────────────────────────
 interface StreakDay {
   date: string;
   active: boolean;
@@ -824,8 +916,8 @@ function generateStreakCalendar(progress: ProgressData): StreakDay[] {
 
   const activityDates = new Map<string, number>();
   for (const [, data] of Object.entries(progress.completedTopics)) {
-    const dateKey = data.completedAt
-      ? data.completedAt.split("T")[0]
+    const dateKey = (data as { completedAt?: string }).completedAt
+      ? (data as { completedAt: string }).completedAt.split("T")[0]
       : new Date().toISOString().split("T")[0];
     activityDates.set(dateKey, (activityDates.get(dateKey) || 0) + Math.ceil(data.bestScore / 20));
   }
@@ -843,13 +935,10 @@ function generateStreakCalendar(progress: ProgressData): StreakDay[] {
     const isToday = dateStr === today.toISOString().split("T")[0];
     const isFuture = date > today;
     const activity = activityDates.get(dateStr) || 0;
-
     let intensity: "low" | "medium" | "high" = "low";
     if (activity >= 5) intensity = "high";
     else if (activity >= 2) intensity = "medium";
-
     days.push({ date: dateStr, active: activity > 0, intensity, isToday, future: isFuture });
   }
-
   return days;
 }
