@@ -144,6 +144,8 @@ export default function ProfilePage() {
   const [darkMode, setDarkMode] = useState(false);
   const [courses, setCourses] = useState<Record<string, CourseMeta>>({});
   const [shareMsg, setShareMsg] = useState("");
+  const [showShareModal, setShowShareModal] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // localStorage-sourced stats
   const [storiesRead, setStoriesRead] = useState(0);
@@ -297,6 +299,18 @@ export default function ProfilePage() {
     ? Math.round(allTopicScores.reduce((s, t) => s + t.bestScore, 0) / allTopicScores.length)
     : 0;
 
+  if (!progress) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--warm)" }}>
+        <Header />
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <LoadingState type="data" message="Hämtar din profil..." />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   const streakDays = generateStreakCalendar(progress);
   const lv         = getLevelInfo(progress.xp);
   const lvPct      = getLevelProgress(progress.xp);
@@ -314,18 +328,237 @@ export default function ProfilePage() {
     setEditingGoal(false);
   }
 
+  async function generateShareImage(): Promise<Blob | null> {
+    if (!progress) return null;
+
+    const canvas = document.createElement("canvas");
+    const W = 1080, H = 1080;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    // ── Background gradient ──
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#0A1628");
+    bg.addColorStop(0.5, "#0D2144");
+    bg.addColorStop(1, "#0A1628");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Decorative circles ──
+    const drawGlow = (x: number, y: number, r: number, color: string, alpha: number) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, color.replace(")", `, ${alpha})`).replace("rgb", "rgba"));
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawGlow(200, 200, 350, "rgb(0, 91, 153)", 0.35);
+    drawGlow(880, 850, 300, "rgb(254, 204, 2)", 0.18);
+    drawGlow(900, 150, 200, "rgb(45, 139, 78)", 0.2);
+
+    // ── Grid dot pattern (subtle) ──
+    ctx.fillStyle = "rgba(255,255,255,0.025)";
+    for (let x = 60; x < W; x += 60) {
+      for (let y = 60; y < H; y += 60) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ── Swedish flag accent bar (top) ──
+    ctx.fillStyle = "#005B99";
+    ctx.fillRect(0, 0, W, 8);
+    ctx.fillStyle = "#FECC02";
+    ctx.fillRect(0, 8, W, 5);
+
+    // ── sfihub.se branding ──
+    ctx.font = "bold 32px 'Arial', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.textAlign = "left";
+    ctx.fillText("sfihub.se", 72, 90);
+
+    // Swedish flag emoji area
+    ctx.font = "42px Arial";
+    ctx.fillText("🇸🇪", W - 130, 90);
+
+    // ── Main headline ──
+    ctx.textAlign = "center";
+    ctx.font = "bold 56px 'Georgia', serif";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("Min Svenska Resa", W / 2, 200);
+
+    // Subtitle
+    ctx.font = "28px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillText("Lär dig Svenska — SFI Learning Platform", W / 2, 250);
+
+    // ── Divider line ──
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(72, 280);
+    ctx.lineTo(W - 72, 280);
+    ctx.stroke();
+
+    // ── Big stats row ──
+    const stats = [
+      { value: String(progress.xp), label: "XP Intjänat", emoji: "⭐", color: "#FECC02" },
+      { value: `${progress.streak}d`, label: "Dagars Streak", emoji: "🔥", color: "#FF6B35" },
+      { value: `${totalCompleted}`, label: "Ämnen Klara", emoji: "📚", color: "#4DB87A" },
+      { value: `${unlockedBadges.length}`, label: "Badges", emoji: "🏅", color: "#C084FC" },
+    ];
+
+    const colW = (W - 144) / stats.length;
+    stats.forEach((stat, i) => {
+      const cx = 72 + colW * i + colW / 2;
+      const cy = 400;
+
+      // Card background
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      roundRect(ctx, cx - colW / 2 + 10, cy - 100, colW - 20, 200, 20);
+      ctx.fill();
+
+      // Emoji
+      ctx.font = "52px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(stat.emoji, cx, cy - 30);
+
+      // Value
+      ctx.font = `bold 58px 'Georgia', serif`;
+      ctx.fillStyle = stat.color;
+      ctx.fillText(stat.value, cx, cy + 50);
+
+      // Label
+      ctx.font = "22px Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillText(stat.label, cx, cy + 85);
+    });
+
+    // ── Level badge ──
+    const lvInfo = getLevelInfo(progress.xp);
+    const lvPct = Math.round(getLevelProgress(progress.xp));
+
+    // Level pill
+    ctx.fillStyle = lvInfo.bg;
+    roundRect(ctx, W / 2 - 130, 630, 260, 52, 26);
+    ctx.fill();
+    ctx.font = "bold 26px Arial";
+    ctx.fillStyle = lvInfo.color;
+    ctx.textAlign = "center";
+    ctx.fillText(`✦ Nivå: ${lvInfo.label} · ${lvPct}%`, W / 2, 664);
+
+    // ── Course progress bars ──
+    ctx.textAlign = "left";
+    const barY = 730;
+    const barW = W - 144;
+    const levels = ["A", "B", "C", "D"];
+    const barH = 14;
+    const gap = 44;
+
+    ctx.font = "bold 22px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fillText("Kursframsteg", 72, barY - 16);
+
+    levels.forEach((lvl, i) => {
+      const y = barY + i * gap;
+      const cp = courseProgress.find(c => c.level === lvl);
+      const pct = cp && cp.total > 0 ? cp.completed / cp.total : 0;
+      const colors = { A: "#4DB87A", B: "#005B99", C: "#C084FC", D: "#FF6B35" } as Record<string, string>;
+
+      // Track
+      ctx.fillStyle = "rgba(255,255,255,0.1)";
+      roundRect(ctx, 72, y, barW - 160, barH, barH / 2);
+      ctx.fill();
+
+      // Fill
+      if (pct > 0) {
+        ctx.fillStyle = colors[lvl] || "#4DB87A";
+        roundRect(ctx, 72, y, Math.max((barW - 160) * pct, barH), barH, barH / 2);
+        ctx.fill();
+      }
+
+      // Label
+      ctx.font = "bold 20px Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.textAlign = "right";
+      ctx.fillText(`Kurs ${lvl}`, barW - 72, y + 12);
+      ctx.font = "18px Arial";
+      ctx.fillStyle = colors[lvl] || "#4DB87A";
+      ctx.textAlign = "right";
+      ctx.fillText(`${cp?.completed || 0}/${cp?.total || 0}`, W - 72, y + 12);
+    });
+
+    // ── Bottom CTA ──
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(ctx, 72, 940, W - 144, 90, 16);
+    ctx.fill();
+
+    ctx.font = "bold 30px Arial";
+    ctx.fillStyle = "#FECC02";
+    ctx.textAlign = "center";
+    ctx.fillText("🇸🇪 Lär dig Svenska gratis på sfihub.se", W / 2, 975);
+    ctx.font = "22px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.fillText("Följ SFI-kursen A→D · AI-berättelser · Uttal · Grammatik", W / 2, 1008);
+
+    // ── Bottom accent bar ──
+    ctx.fillStyle = "#FECC02";
+    ctx.fillRect(0, H - 8, W, 5);
+    ctx.fillStyle = "#005B99";
+    ctx.fillRect(0, H - 3, W, 3);
+
+    return new Promise(resolve => canvas.toBlob(resolve, "image/png", 0.95));
+  }
+
+  function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   async function handleShare() {
     if (!progress) return;
-    const text = `🇸🇪 Jag lär mig Svenska på sfihub.se!\n\n⭐ ${progress.xp} XP | 🔥 ${progress.streak} dagars streak | 📚 ${totalCompleted}/${totalTopics} ämnen klara\n\n#LearnSwedish #SFI #Svenska`;
+    setShareMsg("Skapar bild...");
+    const blob = await generateShareImage();
+    if (!blob) {
+      setShareMsg("Fel ❌");
+      setTimeout(() => setShareMsg(""), 2000);
+      return;
+    }
+
+    const file = new File([blob], "sfihub-min-resa.png", { type: "image/png" });
+
     try {
-      if (navigator.share) {
-        await navigator.share({ title: "Min svenska framsteg", text, url: "https://sfihub.se" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: "Min Svenska Resa 🇸🇪",
+          text: `Jag lär mig Svenska på sfihub.se! ⭐ ${progress.xp} XP | 🔥 ${progress.streak} dagars streak | 📚 ${totalCompleted} ämnen klara #LearnSwedish #SFI`,
+          files: [file],
+          url: "https://sfihub.se",
+        });
+        setShareMsg("");
       } else {
-        await navigator.clipboard.writeText(text + "\nhttps://sfihub.se");
-        setShareMsg("Kopierad! ✅");
-        setTimeout(() => setShareMsg(""), 2500);
+        // Fallback: open image in new tab for manual save/share
+        const url = URL.createObjectURL(blob);
+        setShowShareModal(true);
+        // Store URL for modal
+        (window as unknown as Record<string, string>)._shareImageUrl = url;
+        setShareMsg("");
       }
-    } catch { /* cancelled */ }
+    } catch { setShareMsg(""); }
   }
 
   return (
@@ -890,7 +1123,143 @@ export default function ProfilePage() {
         )}
       </div>
       <Footer />
+      {showShareModal && <ShareModal onClose={() => setShowShareModal(false)} />}
     </>
+  );
+}
+
+
+// ─── SHARE MODAL ─────────────────────────────────────────────────────────────
+function ShareModal({ onClose }: { onClose: () => void }) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = (window as unknown as Record<string, string>)._shareImageUrl;
+    if (url) setImgUrl(url);
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, []);
+
+  async function download() {
+    if (!imgUrl) return;
+    const a = document.createElement("a");
+    a.href = imgUrl;
+    a.download = "sfihub-min-resa.png";
+    a.click();
+  }
+
+  async function copyLink() {
+    await navigator.clipboard.writeText("https://sfihub.se");
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "16px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "white", borderRadius: "20px", padding: "28px",
+          maxWidth: "480px", width: "100%", boxShadow: "0 32px 80px rgba(0,0,0,0.4)",
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <div>
+            <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.4rem", margin: 0 }}>
+              Dela din resa 🇸🇪
+            </h3>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-light)", margin: "4px 0 0" }}>
+              Ladda ner bilden och dela den på sociala medier
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "var(--warm-dark)", border: "none", borderRadius: "50%",
+              width: 36, height: 36, cursor: "pointer", fontSize: "1rem",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >✕</button>
+        </div>
+
+        {/* Preview */}
+        {imgUrl && (
+          <div style={{
+            borderRadius: "12px", overflow: "hidden", marginBottom: "20px",
+            border: "2px solid var(--warm-dark)", aspectRatio: "1",
+          }}>
+            <img src={imgUrl} alt="Delningsbild" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <button
+            onClick={download}
+            style={{
+              width: "100%", padding: "14px", borderRadius: "10px", border: "none",
+              background: "var(--blue)", color: "white", fontWeight: 700, fontSize: "0.95rem",
+              cursor: "pointer", fontFamily: "'Outfit', sans-serif",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            }}
+          >
+            ⬇️ Ladda ner bild
+          </button>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <a
+              href={`https://www.linkedin.com/sharing/share-offsite/?url=https://sfihub.se`}
+              target="_blank" rel="noopener noreferrer"
+              style={{
+                padding: "12px", borderRadius: "10px", border: "2px solid #0A66C2",
+                background: "white", color: "#0A66C2", fontWeight: 600, fontSize: "0.85rem",
+                cursor: "pointer", fontFamily: "'Outfit', sans-serif", textDecoration: "none",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+              }}
+            >
+              in LinkedIn
+            </a>
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("Jag lär mig Svenska på sfihub.se! 🇸🇪 #LearnSwedish #SFI #Svenska")}&url=https://sfihub.se`}
+              target="_blank" rel="noopener noreferrer"
+              style={{
+                padding: "12px", borderRadius: "10px", border: "2px solid #000",
+                background: "white", color: "#000", fontWeight: 600, fontSize: "0.85rem",
+                cursor: "pointer", fontFamily: "'Outfit', sans-serif", textDecoration: "none",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+              }}
+            >
+              𝕏 Twitter/X
+            </a>
+          </div>
+
+          <button
+            onClick={copyLink}
+            style={{
+              width: "100%", padding: "12px", borderRadius: "10px",
+              border: "2px solid var(--warm-dark)", background: "var(--warm)",
+              fontWeight: 600, fontSize: "0.85rem", cursor: "pointer",
+              fontFamily: "'Outfit', sans-serif", color: "var(--text)",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            }}
+          >
+            🔗 Kopiera länk till sfihub.se
+          </button>
+        </div>
+
+        <p style={{ fontSize: "0.75rem", color: "var(--text-light)", textAlign: "center", marginTop: "16px", marginBottom: 0 }}>
+          Ladda ner bilden → ladda upp den manuellt på Instagram eller Facebook
+        </p>
+      </div>
+    </div>
   );
 }
 
