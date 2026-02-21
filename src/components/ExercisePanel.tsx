@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Exercise } from "@/data/types";
-import { addXP, incrementStreak, markTopicComplete } from "@/lib/progress";
+import { addXP, incrementStreak, markTopicComplete, getProgress } from "@/lib/progress";
 import { notify } from "@/lib/notify";
 
 interface Props {
@@ -19,6 +19,8 @@ export default function ExercisePanel({ exercises, topicId }: Props) {
   const [isCorrect, setIsCorrect] = useState(false);
   const [finished, setFinished] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [saved, setSaved] = useState(false);
+
 
   const ex = exercises[currentQ];
   const progress = ((currentQ) / exercises.length) * 100;
@@ -28,6 +30,13 @@ export default function ExercisePanel({ exercises, topicId }: Props) {
       inputRef.current.focus();
     }
   }, [currentQ, ex?.type]);
+
+  useEffect(() => {
+    if (finished && !saved) {
+      handleFinish();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished]);
 
   function handleMC(idx: number) {
     if (answered) return;
@@ -64,24 +73,23 @@ export default function ExercisePanel({ exercises, topicId }: Props) {
   }
 
   function handleFinish() {
+    if (saved) return; // prevent double-call
+    setSaved(true);
     const pct = Math.round((score / exercises.length) * 100);
-    addXP(score * 10);
+    markTopicComplete(topicId, score, exercises.length); // handles XP internally
     if (pct >= 80) incrementStreak();
-    markTopicComplete(topicId, score, exercises.length);
 
-    // 🔔 Fire local notification based on result
+    // 🔔 Notifications
     if (pct === 100) {
       notify.perfect();
     } else if (pct >= 80) {
       notify.goodScore(pct);
-      if (pct >= 80) {
-        // Also fire streak notification (streak was just incremented above)
-        const progress = require("@/lib/progress").getProgress();
-        notify.streak(progress.streak);
-      }
+      const prog = getProgress(); // use already-imported getProgress, not require()
+      notify.streak(prog.streak);
     }
   }
-  
+
+
   function restart() {
     setCurrentQ(0);
     setScore(0);
@@ -90,18 +98,15 @@ export default function ExercisePanel({ exercises, topicId }: Props) {
     setFillValue("");
     setIsCorrect(false);
     setFinished(false);
+    setSaved(false);
   }
 
   // Results screen
   if (finished) {
     const pct = Math.round((score / exercises.length) * 100);
-    const cls = pct >= 80 ? "great" : pct >= 50 ? "ok" : "needs-work";
     const msg = pct >= 80 ? "Utmärkt! (Excellent!)" : pct >= 50 ? "Bra jobbat! (Good job!)" : "Fortsätt öva! (Keep practicing!)";
     const bgColor = pct >= 80 ? "var(--correct-bg)" : pct >= 50 ? "var(--yellow-light)" : "var(--wrong-bg)";
     const textColor = pct >= 80 ? "var(--correct)" : pct >= 50 ? "var(--yellow-dark)" : "var(--wrong)";
-
-    // Trigger save on mount of results
-    handleFinish();
 
     return (
       <div className="text-center py-10 animate-slide-up">

@@ -193,6 +193,7 @@ export interface LeaderboardEntry {
 export async function getLeaderboard(limit: number = 50): Promise<LeaderboardEntry[]> {
   if (!isSupabaseConfigured) return [];
 
+  // Single join-style query: get profiles + topic counts together
   const { data: profiles, error } = await supabase
     .from("user_profiles")
     .select("user_id, display_name, xp, streak, last_activity")
@@ -201,28 +202,29 @@ export async function getLeaderboard(limit: number = 50): Promise<LeaderboardEnt
 
   if (error || !profiles) return [];
 
-  // Get topic counts for each user
-  const entries: LeaderboardEntry[] = [];
+  const userIds = profiles.filter(p => p.xp > 0).map(p => p.user_id);
 
-  for (const profile of profiles) {
-    if (profile.xp === 0) continue; // skip users with no activity
+  // One query for all topic counts
+  const { data: topicCounts } = await supabase
+    .from("user_progress")
+    .select("user_id")
+    .in("user_id", userIds);
 
-    const { count } = await supabase
-      .from("user_progress")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", profile.user_id);
-
-    entries.push({
-      user_id: profile.user_id,
-      display_name: profile.display_name || "Anonym elev",
-      xp: profile.xp || 0,
-      streak: profile.streak || 0,
-      topics_completed: count || 0,
-      last_activity: profile.last_activity,
-    });
+  const countMap: Record<string, number> = {};
+  for (const row of topicCounts || []) {
+    countMap[row.user_id] = (countMap[row.user_id] || 0) + 1;
   }
 
-  return entries;
+  return profiles
+    .filter(p => p.xp > 0)
+    .map(p => ({
+      user_id: p.user_id,
+      display_name: p.display_name || "Anonym elev",
+      xp: p.xp || 0,
+      streak: p.streak || 0,
+      topics_completed: countMap[p.user_id] || 0,
+      last_activity: p.last_activity,
+    }));
 }
 
 // Update display name

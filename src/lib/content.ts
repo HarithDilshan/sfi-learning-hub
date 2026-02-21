@@ -1,31 +1,99 @@
-import { supabase, isSupabaseConfigured } from "./supabase";
-import { courseData as hardcodedCourses, phrasesData as hardcodedPhrases, levelMeta } from "@/data";
-import { CourseLevel, Topic, VocabWord, DialogueLine, GrammarNote, Exercise, PhraseCategory, LevelKey } from "@/data/types";
+import { supabase } from "./supabase";
+import { levelMeta } from "@/data";
+import {
+  CourseLevel,
+  Topic,
+  VocabWord,
+  DialogueLine,
+  GrammarNote,
+  Exercise,
+  PhraseCategory,
+} from "@/data/types";
 
-// Try loading from Supabase, fall back to hardcoded data
-export async function getCourses(): Promise<Record<string, CourseLevel>> {
-  if (!isSupabaseConfigured) return hardcodedCourses;
+// ─── LEAN STRUCTURE (profile page, nav, topic lists) ─────────────────────────
+// Fetches only course + topic metadata — no vocab/dialogue/grammar/exercises.
+// Use this anywhere you just need topic IDs, titles, counts.
 
-  try {
-    const { data: courses, error } = await supabase
-      .from("courses")
-      .select("*")
-      .order("sort_order");
+export interface TopicMeta {
+  id: string;
+  icon: string;
+  title: string;
+  desc: string;
+  tags: string[];
+}
 
-    if (error || !courses?.length) return hardcodedCourses;
+export interface CourseMeta {
+  id: string;
+  name: string;
+  desc: string;
+  topics: TopicMeta[];
+}
 
-    const result: Record<string, CourseLevel> = {};
+let _courseMetaCache: Record<string, CourseMeta> | null = null;
 
-    for (const course of courses) {
+export async function getCoursesStructure(): Promise<Record<string, CourseMeta>> {
+  // Return cached version if already fetched this session
+  if (_courseMetaCache) return _courseMetaCache;
+
+  const { data: courses, error } = await supabase
+    .from("courses")
+    .select("id, name, description")
+    .order("sort_order");
+
+  if (error || !courses?.length) return {};
+
+  const result: Record<string, CourseMeta> = {};
+
+  await Promise.all(
+    courses.map(async (course) => {
       const { data: topics } = await supabase
         .from("topics")
-        .select("*")
+        .select("id, icon, title, description, tags")
         .eq("course_id", course.id)
         .order("sort_order");
 
-      const fullTopics: Topic[] = [];
+      result[course.id] = {
+        id: course.id,
+        name: course.name,
+        desc: course.description || "",
+        topics: (topics || []).map((t) => ({
+          id: t.id,
+          icon: t.icon || "📚",
+          title: t.title,
+          desc: t.description || "",
+          tags: t.tags || [],
+        })),
+      };
+    })
+  );
 
-      for (const topic of topics || []) {
+  _courseMetaCache = result;
+  return result;
+}
+
+// ─── FULL COURSE DATA (lesson pages) ─────────────────────────────────────────
+// Fetches everything including vocab, dialogue, grammar, exercises.
+// Expensive — only call this when opening a specific course or topic.
+
+export async function getCourses(): Promise<Record<string, CourseLevel>> {
+  const { data: courses, error } = await supabase
+    .from("courses")
+    .select("*")
+    .order("sort_order");
+
+  if (error || !courses?.length) return {};
+
+  const result: Record<string, CourseLevel> = {};
+
+  for (const course of courses) {
+    const { data: topics } = await supabase
+      .from("topics")
+      .select("*")
+      .eq("course_id", course.id)
+      .order("sort_order");
+
+    const fullTopics: Topic[] = await Promise.all(
+      (topics || []).map(async (topic) => {
         const [vocabRes, dialogueRes, grammarRes, exerciseRes] = await Promise.all([
           supabase.from("vocabulary").select("*").eq("topic_id", topic.id).order("sort_order"),
           supabase.from("dialogues").select("*").eq("topic_id", topic.id).order("sort_order"),
@@ -39,14 +107,13 @@ export async function getCourses(): Promise<Record<string, CourseLevel>> {
           pron: v.pronunciation || "",
         }));
 
-        const dialogue: DialogueLine[] | undefined =
-          dialogueRes.data?.length
-            ? dialogueRes.data.map((d) => ({
-                speaker: d.speaker,
-                sv: d.swedish,
-                en: d.english,
-              }))
-            : undefined;
+        const dialogue: DialogueLine[] | undefined = dialogueRes.data?.length
+          ? dialogueRes.data.map((d) => ({
+              speaker: d.speaker,
+              sv: d.swedish,
+              en: d.english,
+            }))
+          : undefined;
 
         const grammar: GrammarNote | undefined = grammarRes.data
           ? {
@@ -64,7 +131,7 @@ export async function getCourses(): Promise<Record<string, CourseLevel>> {
           hint: e.hint || undefined,
         }));
 
-        fullTopics.push({
+        return {
           id: topic.id,
           icon: topic.icon || "📚",
           title: topic.title,
@@ -74,71 +141,192 @@ export async function getCourses(): Promise<Record<string, CourseLevel>> {
           dialogue,
           grammar,
           exercises,
-        });
-      }
+        };
+      })
+    );
 
-      result[course.id] = {
-        name: course.name,
-        desc: course.description || "",
-        topics: fullTopics,
-      };
-    }
-
-    return result;
-  } catch {
-    return hardcodedCourses;
+    result[course.id] = {
+      name: course.name,
+      desc: course.description || "",
+      topics: fullTopics,
+    };
   }
+
+  return result;
 }
 
+// ─── PHRASES ─────────────────────────────────────────────────────────────────
+
 export async function getPhrases(): Promise<PhraseCategory[]> {
-  if (!isSupabaseConfigured) return hardcodedPhrases;
+  const { data: categories, error } = await supabase
+    .from("phrase_categories")
+    .select("*")
+    .order("sort_order");
 
-  try {
-    const { data: categories, error } = await supabase
-      .from("phrase_categories")
-      .select("*")
-      .order("sort_order");
+  if (error || !categories?.length) return [];
 
-    if (error || !categories?.length) return hardcodedPhrases;
-
-    const result: PhraseCategory[] = [];
-
-    for (const cat of categories) {
+  const result: PhraseCategory[] = await Promise.all(
+    categories.map(async (cat) => {
       const { data: phrases } = await supabase
         .from("phrases")
         .select("*")
         .eq("category_id", cat.id)
         .order("sort_order");
 
-      result.push({
+      return {
         icon: cat.icon || "💬",
         title: cat.title,
         phrases: (phrases || []).map((p) => ({
           sv: p.swedish,
           en: p.english,
         })),
-      });
-    }
+      };
+    })
+  );
 
-    return result;
-  } catch {
-    return hardcodedPhrases;
-  }
+  return result;
 }
+
+// ─── LEVEL META (local — this is just label config, not content) ─────────────
 
 export function getLevelMeta() {
   return levelMeta;
 }
 
-// Get a single course
+// ─── SINGLE ITEM HELPERS ─────────────────────────────────────────────────────
+
 export async function getCourse(level: string): Promise<CourseLevel | null> {
-  const courses = await getCourses();
-  return courses[level] || null;
+  const { data: course, error } = await supabase
+    .from("courses")
+    .select("*")
+    .eq("id", level)
+    .single();
+
+  if (error || !course) return null;
+
+  const { data: topics } = await supabase
+    .from("topics")
+    .select("*")
+    .eq("course_id", level)
+    .order("sort_order");
+
+  const fullTopics: Topic[] = await Promise.all(
+    (topics || []).map(async (topic) => {
+      const [vocabRes, dialogueRes, grammarRes, exerciseRes] = await Promise.all([
+        supabase.from("vocabulary").select("*").eq("topic_id", topic.id).order("sort_order"),
+        supabase.from("dialogues").select("*").eq("topic_id", topic.id).order("sort_order"),
+        supabase.from("grammar_notes").select("*").eq("topic_id", topic.id).single(),
+        supabase.from("exercises").select("*").eq("topic_id", topic.id).order("sort_order"),
+      ]);
+
+      const vocab: VocabWord[] = (vocabRes.data || []).map((v) => ({
+        sv: v.swedish,
+        en: v.english,
+        pron: v.pronunciation || "",
+      }));
+
+      const dialogue: DialogueLine[] | undefined = dialogueRes.data?.length
+        ? dialogueRes.data.map((d) => ({
+            speaker: d.speaker,
+            sv: d.swedish,
+            en: d.english,
+          }))
+        : undefined;
+
+      const grammar: GrammarNote | undefined = grammarRes.data
+        ? {
+            title: grammarRes.data.title,
+            rule: grammarRes.data.rule,
+            example: grammarRes.data.example,
+          }
+        : undefined;
+
+      const exercises: Exercise[] = (exerciseRes.data || []).map((e) => ({
+        type: e.type as "mc" | "fill",
+        q: e.question,
+        options: e.options || undefined,
+        answer: e.type === "mc" ? parseInt(e.answer) : e.answer,
+        hint: e.hint || undefined,
+      }));
+
+      return {
+        id: topic.id,
+        icon: topic.icon || "📚",
+        title: topic.title,
+        desc: topic.description || "",
+        tags: topic.tags || [],
+        vocab,
+        dialogue,
+        grammar,
+        exercises,
+      };
+    })
+  );
+
+  return {
+    name: course.name,
+    desc: course.description || "",
+    topics: fullTopics,
+  };
 }
 
-// Get a single topic
 export async function getTopic(level: string, topicId: string): Promise<Topic | null> {
-  const course = await getCourse(level);
-  if (!course) return null;
-  return course.topics.find((t) => t.id === topicId) || null;
+  // Fetch only the single topic — much faster than loading the whole course
+  const { data: topic, error } = await supabase
+    .from("topics")
+    .select("*")
+    .eq("id", topicId)
+    .eq("course_id", level)
+    .single();
+
+  if (error || !topic) return null;
+
+  const [vocabRes, dialogueRes, grammarRes, exerciseRes] = await Promise.all([
+    supabase.from("vocabulary").select("*").eq("topic_id", topic.id).order("sort_order"),
+    supabase.from("dialogues").select("*").eq("topic_id", topic.id).order("sort_order"),
+    supabase.from("grammar_notes").select("*").eq("topic_id", topic.id).single(),
+    supabase.from("exercises").select("*").eq("topic_id", topic.id).order("sort_order"),
+  ]);
+
+  const vocab: VocabWord[] = (vocabRes.data || []).map((v) => ({
+    sv: v.swedish,
+    en: v.english,
+    pron: v.pronunciation || "",
+  }));
+
+  const dialogue: DialogueLine[] | undefined = dialogueRes.data?.length
+    ? dialogueRes.data.map((d) => ({
+        speaker: d.speaker,
+        sv: d.swedish,
+        en: d.english,
+      }))
+    : undefined;
+
+  const grammar: GrammarNote | undefined = grammarRes.data
+    ? {
+        title: grammarRes.data.title,
+        rule: grammarRes.data.rule,
+        example: grammarRes.data.example,
+      }
+    : undefined;
+
+  const exercises: Exercise[] = (exerciseRes.data || []).map((e) => ({
+    type: e.type as "mc" | "fill",
+    q: e.question,
+    options: e.options || undefined,
+    answer: e.type === "mc" ? parseInt(e.answer) : e.answer,
+    hint: e.hint || undefined,
+  }));
+
+  return {
+    id: topic.id,
+    icon: topic.icon || "📚",
+    title: topic.title,
+    desc: topic.description || "",
+    tags: topic.tags || [],
+    vocab,
+    dialogue,
+    grammar,
+    exercises,
+  };
 }

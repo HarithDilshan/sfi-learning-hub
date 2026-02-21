@@ -6,10 +6,10 @@ import { loadWeeklyGoal, updateWeeklyProgress } from "./weekly-goals";
 export interface ProgressData {
   xp: number;
   streak: number;
-  completedTopics: Record<string, { score: number; bestScore: number; attempts: number,completedAt: string; }>;
+  completedTopics: Record<string, { score: number; bestScore: number; attempts: number, completedAt: string; }>;
   wordHistory: Record<string, { correct: number; wrong: number; lastSeen: string }>;
   lastActivity: string;
-  lastStudyHour?: number; 
+  lastStudyHour?: number;
   userId: string | null;
 }
 
@@ -73,7 +73,28 @@ export function addXP(amount: number): ProgressData {
 }
 
 export function incrementStreak(): ProgressData {
-  currentProgress.streak += 1;
+  const today = new Date().toISOString().split("T")[0];
+  const lastDate = currentProgress.lastActivity
+    ? currentProgress.lastActivity.split("T")[0]
+    : null;
+
+  if (lastDate === today) {
+    // Already studied today — don't increment again
+    return currentProgress;
+  }
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+  if (lastDate === yesterdayStr) {
+    // Studied yesterday — keep streak going
+    currentProgress.streak += 1;
+  } else {
+    // Missed a day (or first time) — reset streak
+    currentProgress.streak = 1;
+  }
+
   currentProgress.lastActivity = new Date().toISOString();
 
   if (typeof window !== "undefined") {
@@ -103,10 +124,10 @@ export function markTopicComplete(
   const attempts = existing ? existing.attempts + 1 : 1;
   const xpEarned = score * 10;
 
-  currentProgress.completedTopics[topicId] = { score: pct, bestScore, attempts,completedAt: existing?.completedAt || new Date().toISOString(), };
+  currentProgress.completedTopics[topicId] = { score: pct, bestScore, attempts, completedAt: existing?.completedAt || new Date().toISOString(), };
   currentProgress.xp += xpEarned;
   currentProgress.lastActivity = new Date().toISOString();
-  currentProgress.lastStudyHour = new Date().getHours(); 
+  currentProgress.lastStudyHour = new Date().getHours();
 
   if (typeof window !== "undefined") {
     try { localStorage.setItem("sfi_progress", JSON.stringify(currentProgress)); } catch { }
@@ -115,13 +136,16 @@ export function markTopicComplete(
   if (currentProgress.userId) {
     syncTopicScore(currentProgress.userId, topicId, pct, bestScore, attempts, xpEarned);
 
-    loadWeeklyGoal(currentProgress.userId).then((goal) => {
-      updateWeeklyProgress(
-        currentProgress.userId!,
-        goal.xpEarned + xpEarned,
-        goal.topicsCompleted + 1
-      );
-    });
+    const isFirstCompletion = !existing; // existing was defined earlier in markTopicComplete
+    if (isFirstCompletion) {
+      loadWeeklyGoal(currentProgress.userId).then((goal) => {
+        updateWeeklyProgress(
+          currentProgress.userId!,
+          goal.xpEarned + xpEarned,
+          goal.topicsCompleted + 1
+        );
+      });
+    }
   }
 
   window.dispatchEvent(new Event("progress-update"));
@@ -136,17 +160,27 @@ export async function loadCloudProgress(userId: string) {
   const cloudTopics = await loadTopicScores(userId);
 
   if (cloudProfile) {
-    currentProgress.xp = cloudProfile.xp || 0;
-    currentProgress.streak = cloudProfile.streak || 0;
+    // Take the HIGHER value — don't discard local guest progress
+    currentProgress.xp = Math.max(currentProgress.xp, cloudProfile.xp || 0);
+    currentProgress.streak = Math.max(currentProgress.streak, cloudProfile.streak || 0);
   }
 
   for (const ct of cloudTopics) {
-    currentProgress.completedTopics[ct.topic_id] = {
-      score: ct.score,
-      bestScore: ct.best_score,
-      attempts: ct.attempts,
-      completedAt: ct.completedAt,
-    };
+    const local = currentProgress.completedTopics[ct.topic_id];
+    // Keep whichever has the higher best score
+    if (!local || ct.best_score > local.bestScore) {
+      currentProgress.completedTopics[ct.topic_id] = {
+        score: ct.score,
+        bestScore: ct.best_score,
+        attempts: ct.attempts,
+        completedAt: ct.last_attempted || new Date().toISOString(),
+      };
+    }
+  }
+
+  // Persist merged result back to localStorage
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("sfi_progress", JSON.stringify(currentProgress)); } catch { }
   }
 
   window.dispatchEvent(new Event("progress-update"));

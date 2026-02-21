@@ -14,7 +14,7 @@ import {
   fetchUserBadges,
   awardBadges,
   fetchTopicIdsByLevel
-} from "../lib/badgeService";
+} from "../service/badgeService";
 
 interface UseBadgesReturn {
   allBadges: BadgeWithStatus[];

@@ -21,8 +21,8 @@ import {
   getWeekLabel,
   getDaysRemaining,
 } from "@/lib/weekly-goals";
-import { courseData } from "@/data";
-import { getLevelMeta } from "@/lib/content";
+
+import { getLevelMeta, getCoursesStructure, type CourseMeta } from "@/lib/content";
 
 type Tab = "overview" | "achievements" | "goals";
 
@@ -142,6 +142,7 @@ export default function ProfilePage() {
   const [editingGoal, setEditingGoal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [courses, setCourses] = useState<Record<string, CourseMeta>>({});
   const [shareMsg, setShareMsg] = useState("");
 
   // localStorage-sourced stats
@@ -197,6 +198,11 @@ export default function ProfilePage() {
     return () => window.removeEventListener("progress-update", handler);
   }, [loadData, userId]);
 
+  // Fetch course structure from Supabase
+  useEffect(() => {
+    getCoursesStructure().then(setCourses);
+  }, []);
+
   useEffect(() => {
     if (tab === "achievements") refreshBadges();
   }, [tab, refreshBadges]);
@@ -241,13 +247,41 @@ export default function ProfilePage() {
   }
 
   const meta = getLevelMeta();
+
+  // Build courseProgress from Supabase-fetched courses.
+  // Topic IDs follow the pattern "a1", "b2" etc — first char is the level key.
+  // If courses haven't loaded yet, fall back to counting from completedTopics directly.
   const courseProgress: CourseProgress[] = (["A", "B", "C", "D", "G"] as const).map((level) => {
-    const levelData = courseData[level];
+    const levelKey = level.toLowerCase();
+    const levelData = courses[level] || courses[levelKey];
     const topics = levelData?.topics || [];
-    const completed = topics.filter(t => progress.completedTopics[t.id]).length;
-    const scores = topics.map(t => progress.completedTopics[t.id]?.bestScore || 0).filter(s => s > 0);
-    const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-    return { level, label: meta[level]?.label || level, total: topics.length, completed, avgScore };
+
+    if (topics.length > 0) {
+      // Use Supabase data — accurate total count
+      const completed = topics.filter(t => progress.completedTopics[t.id]).length;
+      const scores = topics
+        .map(t => progress.completedTopics[t.id]?.bestScore || 0)
+        .filter(s => s > 0);
+      const avgScore = scores.length > 0
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : 0;
+      return { level, label: meta[level]?.label || level, total: topics.length, completed, avgScore };
+    } else {
+      // Supabase not yet loaded — derive from completedTopics keys (e.g. "a1", "a2")
+      const completedForLevel = Object.entries(progress.completedTopics)
+        .filter(([id]) => id.startsWith(levelKey));
+      const scores = completedForLevel.map(([, d]) => d.bestScore).filter(s => s > 0);
+      const avgScore = scores.length > 0
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : 0;
+      return {
+        level,
+        label: meta[level]?.label || level,
+        total: completedForLevel.length, // best we can do without Supabase
+        completed: completedForLevel.length,
+        avgScore,
+      };
+    }
   });
 
   const totalTopics    = courseProgress.reduce((s, c) => s + c.total, 0);
@@ -281,6 +315,7 @@ export default function ProfilePage() {
   }
 
   async function handleShare() {
+    if (!progress) return;
     const text = `🇸🇪 Jag lär mig Svenska på sfihub.se!\n\n⭐ ${progress.xp} XP | 🔥 ${progress.streak} dagars streak | 📚 ${totalCompleted}/${totalTopics} ämnen klara\n\n#LearnSwedish #SFI #Svenska`;
     try {
       if (navigator.share) {

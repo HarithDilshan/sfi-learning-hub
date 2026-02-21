@@ -1,7 +1,7 @@
 "use client";
 
-import { supabase } from "./supabase";
-import { BadgeMetadata } from "./badges";
+import { supabase } from "@/lib/supabase";
+import { BadgeMetadata } from "@/lib/badges";
 
 // ─── Fetch all badge metadata from Supabase ───
 export async function fetchAllBadges(): Promise<BadgeMetadata[]> {
@@ -79,7 +79,7 @@ export async function awardBadges(
 // Fetch all topic IDs for a given level (or all levels if omitted)
 export async function fetchTopicIdsByLevel(level?: string): Promise<string[]> {
   const query = supabase.from("topics").select("id");
-  if (level) query.eq("level", level);
+  if (level) query.eq("course_id", level);
   
   const { data, error } = await query;
   if (error) {
