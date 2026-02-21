@@ -4,6 +4,7 @@ import "./globals.css";
 import PWARegister from "@/components/PWARegister";
 import AppWrapper from "@/components/AppWrapper";
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const dmSerif = DM_Serif_Display({
   weight: ["400"],
@@ -182,6 +183,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PWARegister />
         <AppWrapper>{children}</AppWrapper>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
