@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 import { addXP, incrementStreak } from "@/lib/progress";
 import { speak } from "@/lib/tts";
 import { supabase } from "@/lib/supabase";

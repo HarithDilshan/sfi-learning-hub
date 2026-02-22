@@ -8,7 +8,7 @@ import { getPhrases } from "@/lib/content";
 import { PhraseCategory } from "@/data/types";
 import { Volume2 } from "lucide-react";
 import type { Metadata } from "next";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 import { speak } from "@/lib/tts";
 
 export const phrasesMetadata: Metadata = {

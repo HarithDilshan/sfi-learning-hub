@@ -8,7 +8,7 @@ import { getUser } from "@/lib/auth";
 import { getWordsForReview, syncWordAttempt } from "@/lib/sync";
 import { getProgress, recordWordAttempt, addXP } from "@/lib/progress";
 import { notify } from "@/lib/notify";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 import { speak, stopSpeaking } from "@/lib/tts";
 import { supabase } from "@/lib/supabase";
 import { fetchAllStoryVocab } from "@/service/storyService";

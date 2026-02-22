@@ -9,7 +9,7 @@ import { getProgress, ProgressData } from "@/lib/progress";
 import { getUserStats } from "@/lib/sync";
 import { BadgeWithStatus } from "@/lib/badges";
 import { useBadges } from "@/hooks/useBadges";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 
 import {
   loadWeeklyGoal,
@@ -23,6 +23,7 @@ import {
 } from "@/lib/weekly-goals";
 
 import { getLevelMeta, getCoursesStructure, type CourseMeta } from "@/lib/content";
+import { WeeklyGoalRow } from "@/lib/db/goals.db";
 
 type Tab = "overview" | "achievements" | "goals";
 
@@ -317,8 +318,10 @@ export default function ProfilePage() {
 
   async function handleSetGoal(xpTarget: number, topicsTarget: number) {
     if (!userId) return;
-    const goal: WeeklyGoal = {
-      xpTarget, topicsTarget,
+    const goal: WeeklyGoalRow = {
+      userId,
+      targetXp: xpTarget,
+      targetTopics: topicsTarget,
       xpEarned: weeklyGoal?.xpEarned || 0,
       topicsCompleted: weeklyGoal?.topicsCompleted || 0,
       weekStart: weeklyGoal?.weekStart || new Date().toISOString().split("T")[0],
@@ -1028,14 +1031,14 @@ export default function ProfilePage() {
                       <div className="mb-5">
                         <div className="flex justify-between text-sm mb-1.5">
                           <span className="font-medium">XP denna vecka</span>
-                          <span style={{ color: "var(--blue)" }}>{weeklyGoal.xpEarned} / {weeklyGoal.xpTarget} XP</span>
+                          <span style={{ color: "var(--blue)" }}>{weeklyGoal.xpEarned} / {weeklyGoal.targetXp} XP</span>
                         </div>
                         <div className="w-full h-4 rounded-full overflow-hidden" style={{ background: "var(--warm-dark)" }}>
                           <div
                             className="h-full rounded-full transition-all duration-700"
                             style={{
-                              width: `${Math.min(100, (weeklyGoal.xpEarned / weeklyGoal.xpTarget) * 100)}%`,
-                              background: weeklyGoal.xpEarned >= weeklyGoal.xpTarget ? "var(--correct)" : "linear-gradient(90deg, var(--blue), var(--forest))",
+                              width: `${Math.min(100, (weeklyGoal.xpEarned / weeklyGoal.targetXp) * 100)}%`,
+                              background: weeklyGoal.xpEarned >= weeklyGoal.targetXp ? "var(--correct)" : "linear-gradient(90deg, var(--blue), var(--forest))",
                             }}
                           />
                         </div>
@@ -1044,14 +1047,14 @@ export default function ProfilePage() {
                       <div>
                         <div className="flex justify-between text-sm mb-1.5">
                           <span className="font-medium">Ämnen denna vecka</span>
-                          <span style={{ color: "var(--blue)" }}>{weeklyGoal.topicsCompleted} / {weeklyGoal.topicsTarget} ämnen</span>
+                          <span style={{ color: "var(--blue)" }}>{weeklyGoal.topicsCompleted} / {weeklyGoal.targetTopics} ämnen</span>
                         </div>
                         <div className="w-full h-4 rounded-full overflow-hidden" style={{ background: "var(--warm-dark)" }}>
                           <div
                             className="h-full rounded-full transition-all duration-700"
                             style={{
-                              width: `${Math.min(100, (weeklyGoal.topicsCompleted / weeklyGoal.topicsTarget) * 100)}%`,
-                              background: weeklyGoal.topicsCompleted >= weeklyGoal.topicsTarget ? "var(--correct)" : "linear-gradient(90deg, var(--yellow), var(--yellow-dark))",
+                              width: `${Math.min(100, (weeklyGoal.topicsCompleted / weeklyGoal.targetTopics) * 100)}%`,
+                              background: weeklyGoal.topicsCompleted >= weeklyGoal.targetTopics ? "var(--correct)" : "linear-gradient(90deg, var(--yellow), var(--yellow-dark))",
                             }}
                           />
                         </div>
@@ -1094,8 +1097,8 @@ export default function ProfilePage() {
                     <h3 className="font-semibold mb-4">Tidigare veckor</h3>
                     <div className="space-y-3">
                       {goalHistory.slice(1).map((g, i) => {
-                        const xpPct = Math.min(100, Math.round((g.xpEarned / g.xpTarget) * 100));
-                        const topicsPct = Math.min(100, Math.round((g.topicsCompleted / g.topicsTarget) * 100));
+                        const xpPct = Math.min(100, Math.round((g.xpEarned / g.targetXp) * 100));
+                        const topicsPct = Math.min(100, Math.round((g.topicsCompleted / g.targetTopics) * 100));
                         const achieved = xpPct >= 100 && topicsPct >= 100;
                         return (
                           <div key={i} className="flex items-center gap-4 p-3 rounded-lg" style={{ background: "var(--warm)" }}>
@@ -1105,7 +1108,7 @@ export default function ProfilePage() {
                                 Vecka {new Date(g.weekStart).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
                               </div>
                               <div className="text-xs" style={{ color: "var(--text-light)" }}>
-                                {g.xpEarned}/{g.xpTarget} XP · {g.topicsCompleted}/{g.topicsTarget} ämnen
+                                {g.xpEarned}/{g.targetXp} XP · {g.topicsCompleted}/{g.targetTopics} ämnen
                               </div>
                             </div>
                             <span className="text-sm font-bold flex-shrink-0" style={{ color: achieved ? "var(--correct)" : "var(--text-light)" }}>

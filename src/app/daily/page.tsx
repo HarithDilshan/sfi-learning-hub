@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 import { addXP, incrementStreak, getProgress, markTopicComplete } from "@/lib/progress";
 import { notify } from "@/lib/notify";
 import { getUser } from "@/lib/auth";

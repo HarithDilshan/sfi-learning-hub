@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import { getCourse } from "@/lib/content";
 import { CourseLevel } from "@/data/types";
 import type { Metadata } from "next";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 
 const levelNames: Record<string, string> = {
   A: "Kurs A — Nybörjare (Beginner)",

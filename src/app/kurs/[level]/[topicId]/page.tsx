@@ -12,7 +12,7 @@ import ExercisePanel from "@/components/ExercisePanel";
 import Flashcards from "@/components/Flashcards";
 import { getTopic } from "@/lib/content";
 import { Topic } from "@/data/types";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 
 
 const sections = [

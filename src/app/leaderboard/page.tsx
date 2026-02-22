@@ -8,7 +8,7 @@ import { getLeaderboard, getUserRank, updateDisplayName, LeaderboardEntry } from
 import { getUser } from "@/lib/auth";
 import { getProgress } from "@/lib/progress";
 import type { Metadata } from "next";
-import { LoadingState } from "@/components/LoadingSystem";
+import { LoadingState } from "@/components/ui/LoadingSystem";
 
 export const leaderboardMetadata: Metadata = {
   title: "Topplista — Swedish Learner Leaderboard",
